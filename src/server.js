@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.3.1';
+const VERSION = '0.3.2';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -203,6 +203,13 @@ function cleanMeta(meta, { mobileBase } = {}) {
   return result;
 }
 
+// Applica lo sfondo mobile a una meta già pulita (usata dal catalogo, che è in cache e condiviso).
+function withMobileBackground(meta, base) {
+  const name = typeof meta?.poster === 'string' && meta.poster.startsWith(`${COVERS_RAW_BASE}/`)
+    ? meta.poster.split('/').pop().replace(/\.png$/i, '') : null;
+  return name ? { ...meta, background: `${base}/bg/${name}.jpg` } : meta;
+}
+
 async function getSerieACatalog(force = false) {
   if (!force && catalogCache.expiresAt > Date.now()) return catalogCache.metas;
   const data = await fetchJson(upstreamUrl('catalog', 'Live Sports', 'soccer'));
@@ -255,8 +262,12 @@ app.get('/catalog/:type/:catalogId.json', async (req, res) => {
   const { type, catalogId } = req.params;
   if (type !== 'Live Sports' || catalogId !== 'serie-a') return res.json({ metas: [] });
   try {
-    const metas = await getSerieACatalog(req.query.refresh === '1');
-    res.set('Cache-Control', 'public, max-age=20');
+    let metas = await getSerieACatalog(req.query.refresh === '1');
+    if (req.forceMobile || MOBILE_UA.test(req.get('user-agent') || '')) {
+      metas = metas.map(meta => withMobileBackground(meta, publicBase(req)));
+    }
+    console.log(`[catalog] mobile=${Boolean(req.forceMobile)} eventi=${metas.length} ua=${req.get('user-agent')}`);
+    res.set({ 'Cache-Control': req.forceMobile ? 'no-store' : 'public, max-age=20', Vary: 'User-Agent' });
     return res.json({ metas });
   } catch (error) {
     console.error('[catalog]', error.message);
