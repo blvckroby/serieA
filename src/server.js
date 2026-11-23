@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -66,7 +66,12 @@ function isChampionsLeague(meta) {
   return typeof name === 'string' && /Champions\s*League\s*:/i.test(name) && !/women|femminile/i.test(name);
 }
 
-const LEAGUE_CHECKS = { 'serie-a': isItalianSerieA, 'champions-league': isChampionsLeague };
+function isEuropaLeague(meta) {
+  const name = meta?.name;
+  return typeof name === 'string' && /Europa\s*League\s*:/i.test(name) && !/women|femminile/i.test(name);
+}
+
+const LEAGUE_CHECKS = { 'serie-a': isItalianSerieA, 'champions-league': isChampionsLeague, 'europa-league': isEuropaLeague };
 const isSupportedEvent = meta => Object.values(LEAGUE_CHECKS).some(check => check(meta));
 const leagueOf = meta => Object.keys(LEAGUE_CHECKS).find(key => LEAGUE_CHECKS[key](meta));
 
@@ -120,6 +125,8 @@ function stripCompetitionPrefix(name) {
     .replace(/^\s*Italy\s*-\s*Serie\s*A\s*:\s*/i, '')
     // Champions League: toglie qualsiasi prefisso (bandiere, "Europe -", "UEFA") fino ai due punti.
     .replace(/^.*?Champions\s*League\s*:\s*/iu, '')
+    // Europa League: stessa logica.
+    .replace(/^.*?Europa\s*League\s*:\s*/iu, '')
     .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D]/gu, '')
     .replace(/\s+/g, ' ')
     .replace(/^[-–—:|•\s]+|[-–—:|•\s]+$/g, '')
@@ -223,12 +230,14 @@ const isSimulcast = value => typeof value === 'string' && SIMULCAST_RE.test(clea
 
 function cleanMeta(meta, base) {
   if (!meta || typeof meta !== 'object') return meta;
-  const champions = leagueOf(meta) === 'champions-league';
-  const simulcast = !champions && (isSimulcast(meta.name) || isSimulcast(meta.title));
+  const league = leagueOf(meta);
+  const champions = league === 'champions-league';
+  const simulcast = league === 'serie-a' && (isSimulcast(meta.name) || isSimulcast(meta.title));
   const cleanName = simulcast ? DIRETTA_GOAL_NAME : cleanMatchTitle(meta.name);
   const cover = simulcast ? DIRETTA_GOAL_COVER
     : champions ? championsCover(meta.name || meta.title || '', base)
-    : coverForMatch(meta.name || meta.title || '');
+    : league === 'serie-a' ? coverForMatch(meta.name || meta.title || '')
+    : null; // Europa League: copertina originale EasySports finché non ci sono quelle personalizzate
   const result = {
     ...meta,
     // ID proprio: così Stremio chiede meta e stream a questo addon e non
@@ -261,20 +270,21 @@ async function getUpstreamEvents(force = false) {
 const manifest = {
   id: 'it.roby.seriea.easysports',
   version: VERSION,
-  name: 'Serie A + Champions',
-  description: 'Eventi della Serie A italiana e della UEFA Champions League, con gli stream forniti da EasySports.',
+  name: 'Serie A + Europa',
+  description: 'Eventi della Serie A italiana, della UEFA Champions League e della UEFA Europa League, con gli stream forniti da EasySports.',
   logo: `${PUBLIC_BASE_URL}/logo.png?v=${LOGO_HASH}`,
   resources: ['catalog', 'meta', 'stream'],
   types: ['Live Sports'],
   idPrefixes: [ID_PREFIX],
   catalogs: [
     { type: 'Live Sports', id: 'serie-a', name: 'Serie A' },
-    { type: 'Live Sports', id: 'champions-league', name: 'UEFA Champions League' }
+    { type: 'Live Sports', id: 'champions-league', name: 'UEFA Champions League' },
+    { type: 'Live Sports', id: 'europa-league', name: 'UEFA Europa League' }
   ],
   behaviorHints: { configurable: false, configurationRequired: false }
 };
 
-app.get('/', (_req, res) => res.json({ name: 'Serie A + Champions addon', manifest: '/manifest.json' }));
+app.get('/', (_req, res) => res.json({ name: 'Serie A + Europa addon', manifest: '/manifest.json' }));
 app.get('/health', (_req, res) => res.json({ ok: true, version: VERSION, logo: LOGO_HASH, upstreamConfigured: Boolean(upstreamPrefix) }));
 app.get('/logo.png', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
