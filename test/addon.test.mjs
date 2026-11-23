@@ -84,7 +84,7 @@ test('Europa League: catalogo separato, titolo pulito', async () => {
   const metas = await catalog('europa-league');
   assert.deepEqual(metas.map(m => m.id), ['seriea:soccer:8', 'seriea:soccer:11', 'seriea:soccer:12']);
   assert.equal(metas[0].name, 'Roma vs Porto');
-  assert.equal(metas[0].poster, 'orig');
+  assert.equal(metas[0].poster, 'https://addon.test/covers/europa/default.webp');
 });
 
 test('meta: ID proprio, stesso poster del catalogo', async () => {
@@ -134,7 +134,7 @@ const TABLE = [
   ['Serie A Simulcast', 'serie-a', 2, 'Diretta Goal', /indazn\.com/],
   ['Champions', 'champions-league', 3, 'AEK Athens vs Real Madrid', /\/covers\/champions\/aek-athens_vs_real-madrid\.webp$/],
   ['Champions (Bodø)', 'champions-league', 4, 'Bodø/Glimt vs Borussia Dortmund', /bodo-glimt_vs_borussia-dortmund\.webp$/],
-  ['Europa League', 'europa-league', 8, 'Roma vs Porto', /^orig$/],
+  ['Europa League', 'europa-league', 8, 'Roma vs Porto', /\/covers\/europa\/default\.webp$/],
   ['Europa League Simulcast', 'europa-league', 11, 'Diretta Goal', /today\.it/]
 ];
 for (const [label, cat, n, name, poster] of TABLE) {
@@ -145,3 +145,11 @@ for (const [label, cat, n, name, poster] of TABLE) {
     assert.match(m.poster, poster);
   });
 }
+
+test('Europa League: copertina di default servita e usata come sfondo', async () => {
+  const m = byId(await catalog('europa-league'), 8);
+  assert.equal(m.background, m.poster);
+  const r = await fetch(m.poster.replace('https://addon.test', BASE));
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('content-type'), 'image/webp');
+});

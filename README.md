@@ -95,3 +95,7 @@ Avvia l'addon su `http://localhost:7000` con eventi finti (nessuna rete): apri `
 ```bash
 MOCK_EVENTS_FILE=miei-eventi.json npm run demo
 ```
+
+### Copertine Europa League
+
+Cartella `src/covers/europa/`: `default.webp` è la copertina usata per tutte le partite che non ne hanno una dedicata. Per una partita specifica aggiungi `squadra-casa_vs_squadra-ospite.webp` (minuscolo, nomi con i trattini, per esempio `real-sociedad_vs_viktoria-plzen.webp`) e rifai il deploy: ha la precedenza sulla copertina di default.
