@@ -11,7 +11,7 @@ Addon Node.js per Stremio che usa EasySports come sorgente, ma pubblica un solo 
 - Aggiorna il catalogo ogni 30 secondi (configurabile).
 - Se EasySports non risponde, restituisce un errore 502 leggibile nei log.
 
-Le copertine sono lasciate per ora quelle originali EasySports: la personalizzazione verrà aggiunta dopo aver verificato il funzionamento del proxy.
+Gli eventi usano un ID proprio (`seriea:`), così Stremio chiede scheda e stream solo a questo addon e la copertina personalizzata resta anche nella schermata delle fonti. Il logo è servito su `/logo.png`.
 
 ## Avvio locale
 
