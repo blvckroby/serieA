@@ -70,3 +70,5 @@ BASE=https://TUO-DOMINIO npm run verify
 ```
 
 Se il telefono non viene riconosciuto in automatico, installa sul telefono `https://TUO-DOMINIO/m/manifest.json`: questa variante serve **sempre** lo sfondo verticale, mentre `/manifest.json` resta per TV/desktop.
+
+Posizione della copertina nello sfondo mobile: variabile `BG_TOP_PERCENT` (default `18`, cioè 18% dell'altezza dall'alto; `0` = in cima, `30` = più in basso).

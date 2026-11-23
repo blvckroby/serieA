@@ -7,7 +7,9 @@ import { readFileSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.3.2';
+const VERSION = '0.3.3';
+// Posizione verticale della copertina nello sfondo mobile (% dell'altezza, 0 = in cima).
+const BG_TOP_PERCENT = Math.min(60, Math.max(0, Number(process.env.BG_TOP_PERCENT ?? 18)));
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -173,7 +175,7 @@ async function buildMobileBackground(filename) {
   const W = 1080, H = 1920;
   const front = await sharp(source).resize(W, null).toBuffer();
   const back = await sharp(source).resize(W, H, { fit: 'cover' }).blur(40).modulate({ brightness: 0.45 }).toBuffer();
-  const out = await sharp(back).composite([{ input: front, top: 0, left: 0 }]).jpeg({ quality: 82 }).toBuffer();
+  const out = await sharp(back).composite([{ input: front, top: Math.round(H * BG_TOP_PERCENT / 100), left: 0 }]).jpeg({ quality: 82 }).toBuffer();
   if (mobileBgCache.size >= 100) mobileBgCache.delete(mobileBgCache.keys().next().value);
   mobileBgCache.set(filename, out);
   return out;
