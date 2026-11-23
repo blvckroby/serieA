@@ -7,7 +7,8 @@ const get = async (url, ua) => (await fetch(url, ua ? { headers: { 'user-agent':
 const status = async url => (await fetch(url, { method: 'GET' })).status;
 
 let problems = 0;
-const { metas } = await get(`${BASE}/catalog/Live%20Sports/serie-a.json`);
+const metas = [];
+for (const cat of ['serie-a', 'champions-league']) metas.push(...(await get(`${BASE}/catalog/Live%20Sports/${cat}.json`)).metas);
 console.log(`Eventi in catalogo: ${metas.length}`);
 for (const m of metas) {
   const enc = encodeURIComponent(m.id);
