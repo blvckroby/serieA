@@ -58,3 +58,13 @@ Il filtro è volutamente restrittivo: `Italy - Serie A` viene incluso, mentre `I
 ## Titoli e copertine
 
 Il catalogo rimuove dal titolo il prefisso `Italy - Serie A:` e le icone iniziali. Per ogni partita cerca una copertina con il formato `squadra_casa_vs_squadra_ospite.png` nel repository [qwertyuiop8899/logo – SerieA](https://github.com/qwertyuiop8899/logo/tree/main/SerieA). Se il file non è presente, mantiene la copertina originale di EasySports.
+
+## Sfondo su telefono e verifica link
+
+Quando Stremio richiede la scheda evento da un dispositivo mobile (iPhone/Android, rilevato dallo User-Agent, oppure `?mobile=1`), lo sfondo diventa `/bg/<squadra>_vs_<squadra>.jpg`: la copertina a tutta larghezza in alto, con sotto la stessa immagine sfocata. Su TV/desktop resta la copertina originale.
+
+Per controllare che i link in catalogo e in scheda coincidano e rispondano 200:
+
+```bash
+BASE=https://TUO-DOMINIO npm run verify
+```
