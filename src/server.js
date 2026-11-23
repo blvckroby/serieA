@@ -1,30 +1,18 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.3.4';
-// Posizione verticale della copertina nello sfondo mobile (% dell'altezza, 0 = in cima).
-const BG_TOP_PERCENT = Math.min(60, Math.max(0, Number(process.env.BG_TOP_PERCENT ?? 18)));
+const VERSION = '0.3.5';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
 const app = express();
 app.disable('x-powered-by');
 
-// Variante mobile: installando <dominio>/m/manifest.json tutte le richieste arrivano con
-// il prefisso /m/, che qui viene tolto e trasformato in un flag. Non dipende dallo User-Agent.
-app.use((req, _res, next) => {
-  if (req.url === '/m' || req.url.startsWith('/m/')) {
-    req.forceMobile = true;
-    req.url = req.url.slice(2) || '/';
-  }
-  next();
-});
 
 const PORT = Number(process.env.PORT || 7000);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
@@ -157,53 +145,15 @@ function coverForMatch(name) {
 const toOwnId = id => (typeof id === 'string' && !id.startsWith(ID_PREFIX) ? ID_PREFIX + id : id);
 const toUpstreamId = id => (id.startsWith(ID_PREFIX) ? id.slice(ID_PREFIX.length) : id);
 
-// Riconoscimento automatico del dispositivo. Le TV (Android TV, Fire TV, tvOS, ecc.) restano su 16:9;
-// iPhone/iPod e telefoni Android usano lo sfondo verticale. Se il client invia gli header
-// "sec-ch-ua-mobile" li usa; altrimenti si basa sullo User-Agent.
-const TV_UA = /\bTV\b|AndroidTV|Android TV|GoogleTV|SmartTV|AFT[A-Z]|BRAVIA|Tizen|Web0S|webOS|NetCast|HbbTV|Chromecast|Shield|tvOS|AppleTV|Apple TV|Roku|Fire ?TV|MiBOX/i;
-const PHONE_UA = /iPhone|iPod|iOS|CFNetwork.*Darwin|Android.*Mobile|Mobile.*Android|okhttp|Dalvik|Nuvio.*(ios|android)/i;
-
-function isMobileRequest(req) {
-  if (req.forceMobile || req.query.mobile === '1') return true;
-  if (req.query.mobile === '0') return false;
-  const ua = req.get('user-agent') || '';
-  if (TV_UA.test(ua)) return false;
-  const hint = req.get('sec-ch-ua-mobile');
-  if (hint) return hint === '?1';
-  return PHONE_UA.test(ua);
-}
-
 function publicBase(req) {
   const proto = req.get('x-forwarded-proto')?.split(',')[0] || req.protocol;
   return PUBLIC_BASE_URL || `${proto}://${req.get('host')}`;
 }
 
-// Sfondo per telefono: la copertina 16:9 a tutta larghezza in alto, sotto la
-// stessa immagine sfocata e scurita. Su schermo verticale non viene più ingrandita/tagliata.
-const mobileBgCache = new Map();
-async function buildMobileBackground(filename) {
-  if (mobileBgCache.has(filename)) return mobileBgCache.get(filename);
-  const response = await fetch(`${COVERS_RAW_BASE}/${filename}`, { headers: { 'user-agent': `SerieA-Stremio-Addon/${VERSION}` } });
-  if (!response.ok) throw new Error(`Cover HTTP ${response.status}`);
-  const source = Buffer.from(await response.arrayBuffer());
-  const W = 1080, H = 1920;
-  const resized = await sharp(source).resize(W, null).toBuffer();
-  const fh = (await sharp(resized).metadata()).height;
-  // Sfumatura in alto e in basso: la copertina si fonde con lo sfondo sfocato senza stacchi.
-  const mask = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${fh}"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-opacity="0"/><stop offset="0.22" stop-opacity="1"/><stop offset="0.78" stop-opacity="1"/><stop offset="1" stop-opacity="0"/></linearGradient></defs><rect width="${W}" height="${fh}" fill="url(#g)"/></svg>`);
-  const front = await sharp(resized).ensureAlpha().composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
-  const back = await sharp(source).resize(W, H, { fit: 'cover' }).blur(90).modulate({ brightness: 0.45 }).toBuffer();
-  const out = await sharp(back).composite([{ input: front, top: Math.round(H * BG_TOP_PERCENT / 100), left: 0 }]).jpeg({ quality: 82 }).toBuffer();
-  if (mobileBgCache.size >= 100) mobileBgCache.delete(mobileBgCache.keys().next().value);
-  mobileBgCache.set(filename, out);
-  return out;
-}
-
-function cleanMeta(meta, { mobileBase } = {}) {
+function cleanMeta(meta) {
   if (!meta || typeof meta !== 'object') return meta;
   const cleanName = cleanMatchTitle(meta.name);
   const cover = coverForMatch(meta.name || meta.title || '');
-  const background = cover && mobileBase ? `${mobileBase}/bg/${cover.split('/').pop().replace(/\.png$/i, '')}.jpg` : cover;
   const result = {
     ...meta,
     // ID proprio: così Stremio chiede meta e stream a questo addon e non
@@ -211,7 +161,7 @@ function cleanMeta(meta, { mobileBase } = {}) {
     id: toOwnId(meta.id),
     ...(typeof meta.name === 'string' ? { name: cleanName } : {}),
     ...(typeof meta.title === 'string' ? { title: cleanMatchTitle(meta.title) } : {}),
-    ...(cover ? { poster: cover, background, thumbnail: cover } : {})
+    ...(cover ? { poster: cover, background: cover, thumbnail: cover } : {})
   };
   if (Array.isArray(meta.videos)) {
     result.videos = meta.videos.map(video => ({
@@ -221,13 +171,6 @@ function cleanMeta(meta, { mobileBase } = {}) {
     }));
   }
   return result;
-}
-
-// Applica lo sfondo mobile a una meta già pulita (usata dal catalogo, che è in cache e condiviso).
-function withMobileBackground(meta, base) {
-  const name = typeof meta?.poster === 'string' && meta.poster.startsWith(`${COVERS_RAW_BASE}/`)
-    ? meta.poster.split('/').pop().replace(/\.png$/i, '') : null;
-  return name ? { ...meta, background: `${base}/bg/${name}.jpg` } : meta;
 }
 
 async function getSerieACatalog(force = false) {
@@ -260,33 +203,17 @@ app.get('/logo.png', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.sendFile(LOGO_PATH);
 });
-app.get('/bg/:name.jpg', async (req, res) => {
-  const name = req.params.name.toLowerCase();
-  if (!/^[a-z0-9_]+_vs_[a-z0-9_]+$/.test(name)) return res.status(404).end();
-  try {
-    const image = await buildMobileBackground(`${name}.png`);
-    res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' });
-    return res.send(image);
-  } catch (error) {
-    console.error('[bg]', error.message);
-    return res.status(502).end();
-  }
-});
 app.get('/manifest.json', (req, res) => {
   // Senza PUBLIC_BASE_URL ricava l'URL pubblico dalla richiesta.
   const base = publicBase(req);
-  res.json({ ...manifest, ...(req.forceMobile ? { id: `${manifest.id}.mobile`, name: `${manifest.name} (mobile)` } : {}), logo: `${base}/logo.png?v=${LOGO_HASH}`, background: `${base}/logo.png?v=${LOGO_HASH}` });
+  res.json({ ...manifest, logo: `${base}/logo.png?v=${LOGO_HASH}`, background: `${base}/logo.png?v=${LOGO_HASH}` });
 });
 
 app.get('/catalog/:type/:catalogId.json', async (req, res) => {
   const { type, catalogId } = req.params;
   if (type !== 'Live Sports' || catalogId !== 'serie-a') return res.json({ metas: [] });
   try {
-    let metas = await getSerieACatalog(req.query.refresh === '1');
-    if (isMobileRequest(req)) {
-      metas = metas.map(meta => withMobileBackground(meta, publicBase(req)));
-    }
-    console.log(`[catalog] mobile=${isMobileRequest(req)} eventi=${metas.length} ua=${req.get('user-agent')}`);
+    const metas = await getSerieACatalog(req.query.refresh === '1');
     res.set({ 'Cache-Control': 'no-store', Vary: 'User-Agent' });
     return res.json({ metas });
   } catch (error) {
@@ -300,12 +227,11 @@ app.get('/meta/:type/:id.json', async (req, res) => {
   const id = toUpstreamId(req.params.id);
   if (type !== 'Live Sports' || !id.startsWith('soccer:')) return res.json({ meta: null });
   try {
-    console.log(`[meta] mobile=${isMobileRequest(req)} ua=${req.get('user-agent')}`);
     const data = await fetchJson(upstreamUrl('meta', type, id));
     const meta = data?.meta;
     if (!isItalianSerieA(meta)) return res.json({ meta: null });
     await loadCoverFiles();
-    return res.json({ ...data, meta: cleanMeta(meta, { mobileBase: isMobileRequest(req) ? publicBase(req) : undefined }) });
+    return res.json({ ...data, meta: cleanMeta(meta) });
   } catch (error) {
     console.error('[meta]', error.message);
     return jsonError(res, 502, 'Impossibile recuperare i dettagli della partita da EasySports.');
