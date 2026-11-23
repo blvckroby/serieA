@@ -74,7 +74,7 @@ L'addon pubblica due cataloghi: `Serie A` e `UEFA Champions League` (eventi il c
 
 Gli eventi `Simulcast` della Serie A diventano `Diretta Goal` con copertina dedicata.
 
-Anche la `UEFA Europa League` ha un catalogo (titoli `Europa League :`, esclusa la femminile); per ora usa le copertine originali EasySports.
+Anche la `UEFA Europa League` ha un catalogo (titoli `Europa League :`, esclusa la femminile); per ora usa le copertine originali EasySports, tranne gli eventi `Simulcast`, che diventano `Diretta Goal` con una copertina dedicata.
 
 ## Test
 
@@ -83,3 +83,15 @@ npm test
 ```
 
 I test avviano l'addon con un finto EasySports (`test/mock-fetch.mjs`, nessuna rete) e controllano cataloghi, titoli puliti, copertine, Diretta Goal, meta e stream.
+
+### Provare i titoli a mano
+
+```bash
+npm run demo
+```
+
+Avvia l'addon su `http://localhost:7000` con eventi finti (nessuna rete): apri `/catalog/Live%20Sports/serie-a.json`, `champions-league.json` o `europa-league.json`. Per provare titoli veri crea un file `miei-eventi.json` con `[{"id":"soccer:1","name":"⚽ UEFA Champions League : AEK Athens 🇬🇷 vs Real Madrid 🇪🇸"}]` e avvia con:
+
+```bash
+MOCK_EVENTS_FILE=miei-eventi.json npm run demo
+```

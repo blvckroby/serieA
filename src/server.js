@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.5.0';
+const VERSION = '0.5.1';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -226,15 +226,16 @@ function publicBase(req) {
 const SIMULCAST_RE = /simul\s*cast|simulcas|simulc|simulat/i;
 const DIRETTA_GOAL_NAME = 'Diretta Goal';
 const DIRETTA_GOAL_COVER = 'https://image.discovery.indazn.com/ca/v3/ca/none/4b2pkfqfso35dqdxe5mx6u5m6_image-header_pIt_1756299253000/fit/center/top/none/100/0/0/auto/image';
+const DIRETTA_GOAL_EUROPA_COVER = 'https://www.today.it/~shared/images/tv/locandine/calcio-diretta-gol-europa-e-conference-league-ep2z.jpg';
 const isSimulcast = value => typeof value === 'string' && SIMULCAST_RE.test(cleanMatchTitle(value));
 
 function cleanMeta(meta, base) {
   if (!meta || typeof meta !== 'object') return meta;
   const league = leagueOf(meta);
   const champions = league === 'champions-league';
-  const simulcast = league === 'serie-a' && (isSimulcast(meta.name) || isSimulcast(meta.title));
+  const simulcast = (league === 'serie-a' || league === 'europa-league') && (isSimulcast(meta.name) || isSimulcast(meta.title));
   const cleanName = simulcast ? DIRETTA_GOAL_NAME : cleanMatchTitle(meta.name);
-  const cover = simulcast ? DIRETTA_GOAL_COVER
+  const cover = simulcast ? (league === 'europa-league' ? DIRETTA_GOAL_EUROPA_COVER : DIRETTA_GOAL_COVER)
     : champions ? championsCover(meta.name || meta.title || '', base)
     : league === 'serie-a' ? coverForMatch(meta.name || meta.title || '')
     : null; // Europa League: copertina originale EasySports finché non ci sono quelle personalizzate
