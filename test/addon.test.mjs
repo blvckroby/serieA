@@ -82,7 +82,7 @@ test('Champions: senza copertina resta quella originale', async () => {
 
 test('Europa League: catalogo separato, titolo pulito', async () => {
   const metas = await catalog('europa-league');
-  assert.deepEqual(metas.map(m => m.id), ['seriea:soccer:8']);
+  assert.deepEqual(metas.map(m => m.id), ['seriea:soccer:8', 'seriea:soccer:11', 'seriea:soccer:12']);
   assert.equal(metas[0].name, 'Roma vs Porto');
   assert.equal(metas[0].poster, 'orig');
 });
@@ -102,3 +102,46 @@ test('meta/stream: eventi di altre competizioni rifiutati', async () => {
   assert.equal((await json('/stream/Live%20Sports/seriea%3Asoccer%3A3.json')).streams.length, 1);
   assert.equal((await json('/stream/Live%20Sports/seriea%3Asoccer%3A8.json')).streams.length, 1);
 });
+
+test('Europa League: Simulcast diventa Diretta Goal con la copertina Europa', async () => {
+  const metas = await catalog('europa-league');
+  for (const n of [11, 12]) {
+    const m = byId(metas, n);
+    assert.equal(m.name, 'Diretta Goal');
+    assert.equal(m.poster, 'https://www.today.it/~shared/images/tv/locandine/calcio-diretta-gol-europa-e-conference-league-ep2z.jpg');
+    assert.equal(m.background, m.poster);
+  }
+  // la copertina Diretta Goal della Serie A resta diversa
+  assert.notEqual(byId(await catalog('serie-a'), 2).poster, byId(metas, 11).poster);
+});
+
+test('Europa League: meta dell\'evento Simulcast coerente con il catalogo', async () => {
+  const { meta } = await json('/meta/Live%20Sports/seriea%3Asoccer%3A11.json');
+  assert.equal(meta.name, 'Diretta Goal');
+  assert.match(meta.poster, /today\.it/);
+  assert.equal((await json('/stream/Live%20Sports/seriea%3Asoccer%3A11.json')).streams.length, 1);
+});
+
+test('Conference League non finisce in nessun catalogo', async () => {
+  for (const c of ['serie-a', 'champions-league', 'europa-league']) {
+    assert.ok(!(await catalog(c)).some(m => m.id === 'seriea:soccer:13'), c);
+  }
+});
+
+// Una riga per competizione: titolo EasySports -> catalogo, nome atteso, copertina attesa.
+const TABLE = [
+  ['Serie A', 'serie-a', 1, 'Inter vs Juventus', /raw\.githubusercontent\.com\/.*inter_vs_juventus\.png$/],
+  ['Serie A Simulcast', 'serie-a', 2, 'Diretta Goal', /indazn\.com/],
+  ['Champions', 'champions-league', 3, 'AEK Athens vs Real Madrid', /\/covers\/champions\/aek-athens_vs_real-madrid\.webp$/],
+  ['Champions (Bodø)', 'champions-league', 4, 'Bodø/Glimt vs Borussia Dortmund', /bodo-glimt_vs_borussia-dortmund\.webp$/],
+  ['Europa League', 'europa-league', 8, 'Roma vs Porto', /^orig$/],
+  ['Europa League Simulcast', 'europa-league', 11, 'Diretta Goal', /today\.it/]
+];
+for (const [label, cat, n, name, poster] of TABLE) {
+  test(`competizione ${label}`, async () => {
+    const m = byId(await catalog(cat), n);
+    assert.ok(m, 'evento presente nel catalogo giusto');
+    assert.equal(m.name, name);
+    assert.match(m.poster, poster);
+  });
+}
