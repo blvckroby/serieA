@@ -2,17 +2,15 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.7.1';
+const VERSION = '0.8.0';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
-const COVERS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'covers');
-const CHAMPIONS_DIR = path.join(COVERS_DIR, 'champions');
-const EUROPA_DIR = path.join(COVERS_DIR, 'europa');
+const COVERS_DIR = process.env.COVERS_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), 'covers');
 
 const app = express();
 app.disable('x-powered-by');
@@ -147,7 +145,7 @@ function cleanMatchTitle(name) {
   return stripCompetitionPrefix(name);
 }
 
-// ---- UEFA Champions League (copertine locali in src/covers/champions) ----
+// ---- Copertine locali (Champions, Europa League e le altre competizioni, in src/covers/<cartella>) ----
 const CHAMPIONS_ALIASES = {
   'psg': 'paris-saint-germain', 'paris sg': 'paris-saint-germain', 'paris saint germain': 'paris-saint-germain',
   'bayern': 'bayern-munich', 'bayern munchen': 'bayern-munich', 'fc bayern munchen': 'bayern-munich',
@@ -228,10 +226,22 @@ function makeLocalCovers(dir, urlPath) {
   };
 }
 
-const championsCovers = makeLocalCovers(CHAMPIONS_DIR, '/covers/champions');
-const europaCovers = makeLocalCovers(EUROPA_DIR, '/covers/europa');
-const championsCover = (name, base) => championsCovers.cover(name, base);
-const europaCover = (name, base) => europaCovers.cover(name, base);
+// Cartella delle copertine di ogni competizione (src/covers/<cartella>/). La Serie A usa il repository GitHub.
+const COVER_FOLDERS = {
+  'serie-b': 'serie-b',
+  'champions-league': 'champions',
+  'europa-league': 'europa',
+  'premier-league': 'premier-league',
+  'ligue-1': 'ligue-1',
+  'bundesliga': 'bundesliga',
+  'la-liga': 'la-liga'
+};
+const localCovers = {};
+for (const [key, folder] of Object.entries(COVER_FOLDERS)) {
+  const dir = path.join(COVERS_DIR, folder);
+  mkdirSync(dir, { recursive: true });
+  localCovers[key] = { dir, urlPath: `/covers/${folder}`, ...makeLocalCovers(dir, `/covers/${folder}`) };
+}
 
 async function loadCoverFiles() {
   if (coverFilesLoadedAt && Date.now() - coverFilesLoadedAt < 10 * 60_000) return coverFiles;
@@ -278,14 +288,11 @@ const isSimulcast = value => typeof value === 'string' && SIMULCAST_RE.test(clea
 function cleanMeta(meta, base) {
   if (!meta || typeof meta !== 'object') return meta;
   const league = leagueOf(meta);
-  const champions = league === 'champions-league';
   const simulcast = (league === 'serie-a' || league === 'europa-league') && (isSimulcast(meta.name) || isSimulcast(meta.title));
   const cleanName = simulcast ? DIRETTA_GOAL_NAME : cleanMatchTitle(meta.name);
   const cover = simulcast ? (league === 'europa-league' ? DIRETTA_GOAL_EUROPA_COVER : DIRETTA_GOAL_COVER)
-    : champions ? championsCover(meta.name || meta.title || '', base)
     : league === 'serie-a' ? coverForMatch(meta.name || meta.title || '')
-    : league === 'europa-league' ? europaCover(meta.name || meta.title || '', base)
-    : null;
+    : localCovers[league]?.cover(meta.name || meta.title || '', base) ?? null;
   const result = {
     ...meta,
     // ID proprio: così Stremio chiede meta e stream a questo addon e non
@@ -340,8 +347,7 @@ app.get('/logo.png', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.sendFile(LOGO_PATH);
 });
-app.use('/covers/champions', express.static(CHAMPIONS_DIR, { maxAge: '1d' }));
-app.use('/covers/europa', express.static(EUROPA_DIR, { maxAge: '1d' }));
+for (const { dir, urlPath } of Object.values(localCovers)) app.use(urlPath, express.static(dir, { maxAge: '1d' }));
 app.get('/manifest.json', (req, res) => res.json(buildManifest(req)));
 
 app.get('/configure', (req, res) => {
