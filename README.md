@@ -61,10 +61,12 @@ Il catalogo rimuove dal titolo il prefisso `Italy - Serie A:` e le icone inizial
 
 ## Sfondo su telefono e verifica link
 
-Quando Stremio richiede la scheda evento da un dispositivo mobile (iPhone/Android, rilevato dallo User-Agent, oppure `?mobile=1`), lo sfondo diventa `/bg/<squadra>_vs_<squadra>.jpg`: la copertina a tutta larghezza in alto, con sotto la stessa immagine sfocata. Su TV/desktop resta la copertina originale.
+Quando Stremio richiede la scheda evento da un dispositivo mobile (iPhone/Android, rilevato dallo User-Agent, oppure installando la variante `/m/`), lo sfondo diventa `/bg/<squadra>_vs_<squadra>.jpg`: la copertina a tutta larghezza in alto, con sotto la stessa immagine sfocata. Su TV/desktop resta la copertina originale.
 
 Per controllare che i link in catalogo e in scheda coincidano e rispondano 200:
 
 ```bash
 BASE=https://TUO-DOMINIO npm run verify
 ```
+
+Se il telefono non viene riconosciuto in automatico, installa sul telefono `https://TUO-DOMINIO/m/manifest.json`: questa variante serve **sempre** lo sfondo verticale, mentre `/manifest.json` resta per TV/desktop.

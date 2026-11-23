@@ -9,6 +9,16 @@ const ID_PREFIX = 'seriea:';
 const app = express();
 app.disable('x-powered-by');
 
+// Variante mobile: installando <dominio>/m/manifest.json tutte le richieste arrivano con
+// il prefisso /m/, che qui viene tolto e trasformato in un flag. Non dipende dallo User-Agent.
+app.use((req, _res, next) => {
+  if (req.url === '/m' || req.url.startsWith('/m/')) {
+    req.forceMobile = true;
+    req.url = req.url.slice(2) || '/';
+  }
+  next();
+});
+
 const PORT = Number(process.env.PORT || 7000);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
 const UPSTREAM_MANIFEST_URL = 'https://easysports.realbestia.com/aHR0cHM6Ly9ibGFwcm8tcDZxZmZhLmZseS5kZXYvfFNjYXRvcmNoaWE3fEV1cm9wZS9Sb21lfGh0dHBzOi8vZWFzeXNwb3J0cy5yZWFsYmVzdGlhLmNvbQ/manifest.json';
@@ -233,7 +243,7 @@ app.get('/bg/:name.jpg', async (req, res) => {
 app.get('/manifest.json', (req, res) => {
   // Senza PUBLIC_BASE_URL ricava l'URL pubblico dalla richiesta.
   const base = publicBase(req);
-  res.json({ ...manifest, logo: `${base}/logo.png`, background: `${base}/logo.png` });
+  res.json({ ...manifest, ...(req.forceMobile ? { id: `${manifest.id}.mobile`, name: `${manifest.name} (mobile)` } : {}), logo: `${base}/logo.png`, background: `${base}/logo.png` });
 });
 
 app.get('/catalog/:type/:catalogId.json', async (req, res) => {
@@ -254,11 +264,12 @@ app.get('/meta/:type/:id.json', async (req, res) => {
   const id = toUpstreamId(req.params.id);
   if (type !== 'Live Sports' || !id.startsWith('soccer:')) return res.json({ meta: null });
   try {
+    console.log(`[meta] mobile=${Boolean(req.forceMobile)} ua=${req.get('user-agent')}`);
     const data = await fetchJson(upstreamUrl('meta', type, id));
     const meta = data?.meta;
     if (!isItalianSerieA(meta)) return res.json({ meta: null });
     await loadCoverFiles();
-    return res.json({ ...data, meta: cleanMeta(meta, { mobileBase: (req.query.mobile === '1' || MOBILE_UA.test(req.get('user-agent') || '')) ? publicBase(req) : undefined }) });
+    return res.json({ ...data, meta: cleanMeta(meta, { mobileBase: (req.forceMobile || req.query.mobile === '1' || MOBILE_UA.test(req.get('user-agent') || '')) ? publicBase(req) : undefined }) });
   } catch (error) {
     console.error('[meta]', error.message);
     return jsonError(res, 502, 'Impossibile recuperare i dettagli della partita da EasySports.');
