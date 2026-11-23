@@ -22,7 +22,11 @@ const events = process.env.MOCK_EVENTS_FILE ? JSON.parse(readFileSync(process.en
   { id: 'soccer:18', name: '⚽ Austria - Bundesliga : Sturm Graz vs Rapid Wien' },
   { id: 'soccer:19', name: '⚽ AFC Champions League : Al Hilal vs Al Nassr' },
   { id: 'soccer:20', name: '⚽ Spain - La Liga 2 : Eibar vs Levante' },
-  { id: 'soccer:21', name: '⚽ Spain - La Liga : Sevilla 🇪🇸 vs Valencia 🇪🇸' }
+  { id: 'soccer:21', name: '⚽ Spain - La Liga : Sevilla 🇪🇸 vs Valencia 🇪🇸' },
+  { id: 'soccer:22', name: '⚽ UEFA Europa League : Real Sociedad 🇪🇸 vs FC Viktoria Plzeň 🇨🇿' },
+  { id: 'soccer:23', name: "⚽ UEFA Europa League : Crystal Palace 🏴 vs Real Sociedad 🇪🇸" },
+  { id: 'soccer:24', name: "⚽ UEFA Europa League : Hapoel Be'er Sheva 🇮🇱 vs Celta Vigo 🇪🇸" },
+  { id: 'soccer:25', name: '⚽ UEFA Europa League : Olympique Lyonnais vs Union St. Gilloise' }
 ];
 const real = globalThis.fetch;
 globalThis.fetch = async (url, opts) => {

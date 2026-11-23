@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.7.0';
+const VERSION = '0.7.1';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -164,6 +164,14 @@ const CHAMPIONS_ALIASES = {
   'as roma': 'roma', 'ssc napoli': 'napoli', 'sk slovan bratislava': 'slovan-bratislava',
   'aek': 'aek-athens', 'aek athens fc': 'aek-athens', 'brugge': 'club-brugge', 'psv eindhoven': 'psv',
   'fc barcelona': 'barcelona', 'real madrid cf': 'real-madrid', 'vfb stuttgart': 'stuttgart',
+  'hapoel be er sheva': 'hapoel-beer-sheva', 'hapoel beer sheva': 'hapoel-beer-sheva', 'sparta praha': 'sparta-prague',
+  'olympiakos': 'olympiacos', 'olympiakos piraeus': 'olympiacos', 'olympiacos piraeus': 'olympiacos',
+  'union st gilloise': 'union-saint-gilloise', 'royale union saint gilloise': 'union-saint-gilloise',
+  'ferencvarosi tc': 'ferencvaros', 'ferencvarosi': 'ferencvaros', 'rb salzburg': 'salzburg', 'red bull salzburg': 'salzburg',
+  'fc salzburg': 'salzburg', 'besiktas jk': 'besiktas', 'celta': 'celta-vigo', 'celta de vigo': 'celta-vigo',
+  'ofi': 'ofi-crete', 'ofi crete': 'ofi-crete', 'ararat armenia': 'ararat-armenia', 'dinamo zagreb': 'dinamo-zagreb', 'gnk dinamo zagreb': 'dinamo-zagreb',
+  'omonia': 'omonia-nicosia', 'ac omonia': 'omonia-nicosia', 'bodo/glimt': 'bodo-glimt', 'real sociedad de futbol': 'real-sociedad',
+  'olympique lyonnais': 'lyon', 'stade rennais': 'rennes', 'stade rennais fc': 'rennes', 'nec': 'nec-nijmegen',
   'rc lens': 'lens', 'losc lille': 'lille', 'lask linz': 'lask', 'fc porto': 'porto', 'como 1907': 'como'
 };
 const LATIN_FIX = { 'ø': 'o', 'Ø': 'o', 'ð': 'd', 'đ': 'd', 'ł': 'l', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe' };
@@ -171,9 +179,21 @@ const LATIN_FIX = { 'ø': 'o', 'Ø': 'o', 'ð': 'd', 'đ': 'd', 'ł': 'l', 'ß':
 // Copertine locali di una competizione: cartella con file "squadra-casa_vs_squadra-ospite.webp".
 // Se la partita non ha un file dedicato si usa "default.webp" (se presente nella cartella).
 function makeLocalCovers(dir, urlPath) {
-  const files = new Set(readdirSync(dir).filter(f => f.endsWith('.webp')).map(f => f.toLowerCase()));
-  const slugs = new Set([...files].filter(f => f.includes('_vs_')).flatMap(f => f.replace(/\.webp$/, '').split('_vs_')));
-  const url = (base, file) => `${base}${urlPath}/${file}`;
+  // Accetta webp/png/jpg. Nome canonico: minuscolo, con i trattini anche al posto di "_" dentro i nomi squadra
+  // (es. "crystal_palace_vs_real_sociedad.png" -> "crystal-palace_vs_real-sociedad").
+  const canonical = new Map();
+  let defaultFile = null;
+  for (const file of readdirSync(dir)) {
+    const m = file.match(/^(.+)\.(webp|png|jpe?g)$/i);
+    if (!m) continue;
+    const stem = m[1].toLowerCase();
+    if (stem === 'default') { defaultFile = file; continue; }
+    if (!stem.includes('_vs_')) continue;
+    const [home, away] = stem.split('_vs_').map(t => t.replace(/_/g, '-'));
+    canonical.set(`${home}_vs_${away}`, file);
+  }
+  const slugs = new Set([...canonical.keys()].flatMap(k => k.split('_vs_')));
+  const url = (base, file) => `${base}${urlPath}/${encodeURIComponent(file)}`;
 
   function slug(value) {
     const normalized = normalizeTeamName(String(value || '').replace(/[øØðđłßæœ]/g, c => LATIN_FIX[c]))
@@ -196,14 +216,14 @@ function makeLocalCovers(dir, urlPath) {
   }
 
   return {
-    files,
+    files: canonical,
     cover(name, base) {
       const match = cleanMatchTitle(name).match(/^(.+?)\s+(?:vs\.?|v\.?|[-–—])\s+(.+)$/i);
       if (match) {
-        const file = `${slug(match[1])}_vs_${slug(match[2])}.webp`;
-        if (files.has(file)) return url(base, file);
+        const file = canonical.get(`${slug(match[1])}_vs_${slug(match[2])}`);
+        if (file) return url(base, file);
       }
-      return files.has('default.webp') ? url(base, 'default.webp') : null;
+      return defaultFile ? url(base, defaultFile) : null;
     }
   };
 }

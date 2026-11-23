@@ -98,7 +98,7 @@ MOCK_EVENTS_FILE=miei-eventi.json npm run demo
 
 ### Copertine Europa League
 
-Cartella `src/covers/europa/`: `default.webp` è la copertina usata per tutte le partite che non ne hanno una dedicata. Per una partita specifica aggiungi `squadra-casa_vs_squadra-ospite.webp` (minuscolo, nomi con i trattini, per esempio `real-sociedad_vs_viktoria-plzen.webp`) e rifai il deploy: ha la precedenza sulla copertina di default.
+Cartella `src/covers/europa/` (accetta `.webp`, `.png`, `.jpg`; nei nomi delle squadre vanno bene sia `-` sia `_`): `default.webp` è la copertina usata per tutte le partite che non ne hanno una dedicata. Per una partita specifica aggiungi `squadra-casa_vs_squadra-ospite.webp` (minuscolo, nomi con i trattini, per esempio `real-sociedad_vs_viktoria-plzen.webp`) e rifai il deploy: ha la precedenza sulla copertina di default.
 
 ## Catalogo unico con scelta della competizione
 

@@ -88,7 +88,7 @@ test('Champions: senza copertina resta quella originale', async () => {
 
 test('Europa League: catalogo separato, titolo pulito', async () => {
   const metas = await catalog('europa-league');
-  assert.deepEqual(metas.map(m => m.id), ['seriea:soccer:8', 'seriea:soccer:11', 'seriea:soccer:12']);
+  assert.deepEqual(metas.map(m => m.id), ['seriea:soccer:8', 'seriea:soccer:11', 'seriea:soccer:12', 'seriea:soccer:22', 'seriea:soccer:23', 'seriea:soccer:24', 'seriea:soccer:25']);
   assert.equal(metas[0].name, 'Roma vs Porto');
   assert.equal(metas[0].poster, 'https://addon.test/covers/europa/default.webp');
 });
@@ -163,7 +163,7 @@ test('Europa League: copertina di default servita e usata come sfondo', async ()
 test('catalogo senza genere: tutte le competizioni supportate, niente Serie C / AFC / Bundesliga austriaca / La Liga 2', async () => {
   const metas = (await json('/catalog/Live%20Sports/calcio.json')).metas;
   const ids = metas.map(m => m.id.replace('seriea:soccer:', '')).sort((a, b) => a - b);
-  assert.deepEqual(ids, ['1', '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '15', '16', '17', '21'].sort((a, b) => a - b));
+  assert.deepEqual(ids, ['1', '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '15', '16', '17', '21', '22', '23', '24', '25'].sort((a, b) => a - b));
 });
 
 test('altre competizioni: titolo pulito dal prefisso e dalle bandiere', async () => {
@@ -205,4 +205,22 @@ test('pagina di configurazione disponibile', async () => {
 test('vecchi ID di catalogo (serie-a) ancora funzionanti', async () => {
   const metas = (await json('/catalog/Live%20Sports/serie-a.json')).metas;
   assert.deepEqual(metas.map(m => m.id), ['seriea:soccer:1', 'seriea:soccer:2']);
+});
+
+test('Europa League: copertine PNG dedicate (anche con "_" nel nome file e nomi diversi)', async () => {
+  const metas = await catalog('europa-league');
+  assert.equal(byId(metas, 22).poster, 'https://addon.test/covers/europa/real_sociedad_vs_viktoria-plzen.png');
+  assert.equal(byId(metas, 23).poster, 'https://addon.test/covers/europa/crystal_palace_vs_real_sociedad.png');
+  assert.equal(byId(metas, 24).poster, 'https://addon.test/covers/europa/hapoel-beer-sheva_vs_celta-vigo.png');
+  assert.equal(byId(metas, 25).poster, 'https://addon.test/covers/europa/lyon_vs_union-saint-gilloise.png');
+  assert.equal(byId(metas, 22).name, 'Real Sociedad vs FC Viktoria Plzeň');
+});
+
+test('Europa League: ogni copertina referenziata esiste e ha un tipo immagine', async () => {
+  for (const m of await catalog('europa-league')) {
+    if (!m.poster.startsWith('https://addon.test')) continue; // copertine esterne (Diretta Goal)
+    const r = await fetch(m.poster.replace('https://addon.test', BASE));
+    assert.equal(r.status, 200, m.poster);
+    assert.match(r.headers.get('content-type'), /^image\//, m.poster);
+  }
 });
