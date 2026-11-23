@@ -2,9 +2,14 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import sharp from 'sharp';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
+const VERSION = '0.3.1';
+// Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
+const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
 const app = express();
 app.disable('x-powered-by');
@@ -162,7 +167,7 @@ function publicBase(req) {
 const mobileBgCache = new Map();
 async function buildMobileBackground(filename) {
   if (mobileBgCache.has(filename)) return mobileBgCache.get(filename);
-  const response = await fetch(`${COVERS_RAW_BASE}/${filename}`, { headers: { 'user-agent': 'SerieA-Stremio-Addon/0.3.0' } });
+  const response = await fetch(`${COVERS_RAW_BASE}/${filename}`, { headers: { 'user-agent': `SerieA-Stremio-Addon/${VERSION}` } });
   if (!response.ok) throw new Error(`Cover HTTP ${response.status}`);
   const source = Buffer.from(await response.arrayBuffer());
   const W = 1080, H = 1920;
@@ -211,10 +216,10 @@ async function getSerieACatalog(force = false) {
 
 const manifest = {
   id: 'it.roby.seriea.easysports',
-  version: '0.3.0',
+  version: VERSION,
   name: 'Serie A Italia',
   description: 'Solo eventi della Serie A italiana, con gli stream forniti da EasySports.',
-  logo: `${PUBLIC_BASE_URL}/logo.png`,
+  logo: `${PUBLIC_BASE_URL}/logo.png?v=${LOGO_HASH}`,
   resources: ['catalog', 'meta', 'stream'],
   types: ['Live Sports'],
   idPrefixes: [ID_PREFIX],
@@ -223,9 +228,9 @@ const manifest = {
 };
 
 app.get('/', (_req, res) => res.json({ name: 'Serie A Italia addon', manifest: '/manifest.json' }));
-app.get('/health', (_req, res) => res.json({ ok: true, upstreamConfigured: Boolean(upstreamPrefix) }));
+app.get('/health', (_req, res) => res.json({ ok: true, version: VERSION, logo: LOGO_HASH, upstreamConfigured: Boolean(upstreamPrefix) }));
 app.get('/logo.png', (_req, res) => {
-  res.set('Cache-Control', 'public, max-age=86400');
+  res.set('Cache-Control', 'public, max-age=300');
   res.sendFile(LOGO_PATH);
 });
 app.get('/bg/:name.jpg', async (req, res) => {
@@ -243,7 +248,7 @@ app.get('/bg/:name.jpg', async (req, res) => {
 app.get('/manifest.json', (req, res) => {
   // Senza PUBLIC_BASE_URL ricava l'URL pubblico dalla richiesta.
   const base = publicBase(req);
-  res.json({ ...manifest, ...(req.forceMobile ? { id: `${manifest.id}.mobile`, name: `${manifest.name} (mobile)` } : {}), logo: `${base}/logo.png`, background: `${base}/logo.png` });
+  res.json({ ...manifest, ...(req.forceMobile ? { id: `${manifest.id}.mobile`, name: `${manifest.name} (mobile)` } : {}), logo: `${base}/logo.png?v=${LOGO_HASH}`, background: `${base}/logo.png?v=${LOGO_HASH}` });
 });
 
 app.get('/catalog/:type/:catalogId.json', async (req, res) => {
