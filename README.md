@@ -109,3 +109,7 @@ Il riconoscimento usa il titolo EasySports (`Paese - Lega :`), in modo stretto: 
 ### Pagina di configurazione
 
 Apri `https://TUO-DOMINIO/configure` (in Stremio è il pulsante *Configura* dell'addon): spunti le competizioni che vuoi, poi premi *Installa in Stremio* oppure copia il link. Il link con una scelta parziale ha la forma `https://TUO-DOMINIO/cfg/serie-a,la-liga/manifest.json`: il catalogo, il filtro genere e le richieste di scheda e stream sono limitati a quelle competizioni. Senza spunte parziali vale `https://TUO-DOMINIO/manifest.json` (tutte).
+
+### Cartelle copertine per competizione
+
+Ogni competizione ha la sua cartella in `src/covers/`: `serie-b`, `champions` (Champions League), `europa` (Europa League), `premier-league`, `ligue-1`, `bundesliga`, `la-liga` (la Serie A usa il repository GitHub). Basta caricare le immagini nella cartella giusta (`squadra-casa_vs_squadra-ospite.png`, anche `.webp`/`.jpg`) e rifare il deploy; `default.png` facoltativa per le partite senza copertina dedicata. Il file `README.md` in ogni cartella ricorda il formato.

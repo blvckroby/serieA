@@ -8,7 +8,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "check": "node --check src/server.js",
-    "verify": "node scripts/verify-links.js", "test": "node --test test/addon.test.mjs", "demo": "node --import ./test/mock-fetch.mjs src/server.js"
+    "verify": "node scripts/verify-links.js", "test": "node --test test/addon.test.mjs test/covers.test.mjs", "demo": "node --import ./test/mock-fetch.mjs src/server.js"
   },
   "engines": {
     "node": ">=20"
