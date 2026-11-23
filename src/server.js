@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.3.3';
+const VERSION = '0.3.4';
 // Posizione verticale della copertina nello sfondo mobile (% dell'altezza, 0 = in cima).
 const BG_TOP_PERCENT = Math.min(60, Math.max(0, Number(process.env.BG_TOP_PERCENT ?? 18)));
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
@@ -157,7 +157,21 @@ function coverForMatch(name) {
 const toOwnId = id => (typeof id === 'string' && !id.startsWith(ID_PREFIX) ? ID_PREFIX + id : id);
 const toUpstreamId = id => (id.startsWith(ID_PREFIX) ? id.slice(ID_PREFIX.length) : id);
 
-const MOBILE_UA = /iPhone|iPod|iPad|Android|Mobile|CFNetwork|okhttp|Dalvik/i;
+// Riconoscimento automatico del dispositivo. Le TV (Android TV, Fire TV, tvOS, ecc.) restano su 16:9;
+// iPhone/iPod e telefoni Android usano lo sfondo verticale. Se il client invia gli header
+// "sec-ch-ua-mobile" li usa; altrimenti si basa sullo User-Agent.
+const TV_UA = /\bTV\b|AndroidTV|Android TV|GoogleTV|SmartTV|AFT[A-Z]|BRAVIA|Tizen|Web0S|webOS|NetCast|HbbTV|Chromecast|Shield|tvOS|AppleTV|Apple TV|Roku|Fire ?TV|MiBOX/i;
+const PHONE_UA = /iPhone|iPod|iOS|CFNetwork.*Darwin|Android.*Mobile|Mobile.*Android|okhttp|Dalvik|Nuvio.*(ios|android)/i;
+
+function isMobileRequest(req) {
+  if (req.forceMobile || req.query.mobile === '1') return true;
+  if (req.query.mobile === '0') return false;
+  const ua = req.get('user-agent') || '';
+  if (TV_UA.test(ua)) return false;
+  const hint = req.get('sec-ch-ua-mobile');
+  if (hint) return hint === '?1';
+  return PHONE_UA.test(ua);
+}
 
 function publicBase(req) {
   const proto = req.get('x-forwarded-proto')?.split(',')[0] || req.protocol;
@@ -173,8 +187,12 @@ async function buildMobileBackground(filename) {
   if (!response.ok) throw new Error(`Cover HTTP ${response.status}`);
   const source = Buffer.from(await response.arrayBuffer());
   const W = 1080, H = 1920;
-  const front = await sharp(source).resize(W, null).toBuffer();
-  const back = await sharp(source).resize(W, H, { fit: 'cover' }).blur(40).modulate({ brightness: 0.45 }).toBuffer();
+  const resized = await sharp(source).resize(W, null).toBuffer();
+  const fh = (await sharp(resized).metadata()).height;
+  // Sfumatura in alto e in basso: la copertina si fonde con lo sfondo sfocato senza stacchi.
+  const mask = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${fh}"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-opacity="0"/><stop offset="0.22" stop-opacity="1"/><stop offset="0.78" stop-opacity="1"/><stop offset="1" stop-opacity="0"/></linearGradient></defs><rect width="${W}" height="${fh}" fill="url(#g)"/></svg>`);
+  const front = await sharp(resized).ensureAlpha().composite([{ input: mask, blend: 'dest-in' }]).png().toBuffer();
+  const back = await sharp(source).resize(W, H, { fit: 'cover' }).blur(90).modulate({ brightness: 0.45 }).toBuffer();
   const out = await sharp(back).composite([{ input: front, top: Math.round(H * BG_TOP_PERCENT / 100), left: 0 }]).jpeg({ quality: 82 }).toBuffer();
   if (mobileBgCache.size >= 100) mobileBgCache.delete(mobileBgCache.keys().next().value);
   mobileBgCache.set(filename, out);
@@ -265,11 +283,11 @@ app.get('/catalog/:type/:catalogId.json', async (req, res) => {
   if (type !== 'Live Sports' || catalogId !== 'serie-a') return res.json({ metas: [] });
   try {
     let metas = await getSerieACatalog(req.query.refresh === '1');
-    if (req.forceMobile || MOBILE_UA.test(req.get('user-agent') || '')) {
+    if (isMobileRequest(req)) {
       metas = metas.map(meta => withMobileBackground(meta, publicBase(req)));
     }
-    console.log(`[catalog] mobile=${Boolean(req.forceMobile)} eventi=${metas.length} ua=${req.get('user-agent')}`);
-    res.set({ 'Cache-Control': req.forceMobile ? 'no-store' : 'public, max-age=20', Vary: 'User-Agent' });
+    console.log(`[catalog] mobile=${isMobileRequest(req)} eventi=${metas.length} ua=${req.get('user-agent')}`);
+    res.set({ 'Cache-Control': 'no-store', Vary: 'User-Agent' });
     return res.json({ metas });
   } catch (error) {
     console.error('[catalog]', error.message);
@@ -282,12 +300,12 @@ app.get('/meta/:type/:id.json', async (req, res) => {
   const id = toUpstreamId(req.params.id);
   if (type !== 'Live Sports' || !id.startsWith('soccer:')) return res.json({ meta: null });
   try {
-    console.log(`[meta] mobile=${Boolean(req.forceMobile)} ua=${req.get('user-agent')}`);
+    console.log(`[meta] mobile=${isMobileRequest(req)} ua=${req.get('user-agent')}`);
     const data = await fetchJson(upstreamUrl('meta', type, id));
     const meta = data?.meta;
     if (!isItalianSerieA(meta)) return res.json({ meta: null });
     await loadCoverFiles();
-    return res.json({ ...data, meta: cleanMeta(meta, { mobileBase: (req.forceMobile || req.query.mobile === '1' || MOBILE_UA.test(req.get('user-agent') || '')) ? publicBase(req) : undefined }) });
+    return res.json({ ...data, meta: cleanMeta(meta, { mobileBase: isMobileRequest(req) ? publicBase(req) : undefined }) });
   } catch (error) {
     console.error('[meta]', error.message);
     return jsonError(res, 502, 'Impossibile recuperare i dettagli della partita da EasySports.');
