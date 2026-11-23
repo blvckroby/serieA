@@ -1,6 +1,7 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import sharp from 'sharp';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
@@ -139,10 +140,35 @@ function coverForMatch(name) {
 const toOwnId = id => (typeof id === 'string' && !id.startsWith(ID_PREFIX) ? ID_PREFIX + id : id);
 const toUpstreamId = id => (id.startsWith(ID_PREFIX) ? id.slice(ID_PREFIX.length) : id);
 
-function cleanMeta(meta) {
+const MOBILE_UA = /iPhone|iPod|iPad|Android|Mobile|CFNetwork|okhttp|Dalvik/i;
+
+function publicBase(req) {
+  const proto = req.get('x-forwarded-proto')?.split(',')[0] || req.protocol;
+  return PUBLIC_BASE_URL || `${proto}://${req.get('host')}`;
+}
+
+// Sfondo per telefono: la copertina 16:9 a tutta larghezza in alto, sotto la
+// stessa immagine sfocata e scurita. Su schermo verticale non viene più ingrandita/tagliata.
+const mobileBgCache = new Map();
+async function buildMobileBackground(filename) {
+  if (mobileBgCache.has(filename)) return mobileBgCache.get(filename);
+  const response = await fetch(`${COVERS_RAW_BASE}/${filename}`, { headers: { 'user-agent': 'SerieA-Stremio-Addon/0.3.0' } });
+  if (!response.ok) throw new Error(`Cover HTTP ${response.status}`);
+  const source = Buffer.from(await response.arrayBuffer());
+  const W = 1080, H = 1920;
+  const front = await sharp(source).resize(W, null).toBuffer();
+  const back = await sharp(source).resize(W, H, { fit: 'cover' }).blur(40).modulate({ brightness: 0.45 }).toBuffer();
+  const out = await sharp(back).composite([{ input: front, top: 0, left: 0 }]).jpeg({ quality: 82 }).toBuffer();
+  if (mobileBgCache.size >= 100) mobileBgCache.delete(mobileBgCache.keys().next().value);
+  mobileBgCache.set(filename, out);
+  return out;
+}
+
+function cleanMeta(meta, { mobileBase } = {}) {
   if (!meta || typeof meta !== 'object') return meta;
   const cleanName = cleanMatchTitle(meta.name);
   const cover = coverForMatch(meta.name || meta.title || '');
+  const background = cover && mobileBase ? `${mobileBase}/bg/${cover.split('/').pop().replace(/\.png$/i, '')}.jpg` : cover;
   const result = {
     ...meta,
     // ID proprio: così Stremio chiede meta e stream a questo addon e non
@@ -150,7 +176,7 @@ function cleanMeta(meta) {
     id: toOwnId(meta.id),
     ...(typeof meta.name === 'string' ? { name: cleanName } : {}),
     ...(typeof meta.title === 'string' ? { title: cleanMatchTitle(meta.title) } : {}),
-    ...(cover ? { poster: cover, background: cover, thumbnail: cover } : {})
+    ...(cover ? { poster: cover, background, thumbnail: cover } : {})
   };
   if (Array.isArray(meta.videos)) {
     result.videos = meta.videos.map(video => ({
@@ -192,10 +218,21 @@ app.get('/logo.png', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=86400');
   res.sendFile(LOGO_PATH);
 });
+app.get('/bg/:name.jpg', async (req, res) => {
+  const name = req.params.name.toLowerCase();
+  if (!/^[a-z0-9_]+_vs_[a-z0-9_]+$/.test(name)) return res.status(404).end();
+  try {
+    const image = await buildMobileBackground(`${name}.png`);
+    res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' });
+    return res.send(image);
+  } catch (error) {
+    console.error('[bg]', error.message);
+    return res.status(502).end();
+  }
+});
 app.get('/manifest.json', (req, res) => {
   // Senza PUBLIC_BASE_URL ricava l'URL pubblico dalla richiesta.
-  const proto = req.get('x-forwarded-proto')?.split(',')[0] || req.protocol;
-  const base = PUBLIC_BASE_URL || `${proto}://${req.get('host')}`;
+  const base = publicBase(req);
   res.json({ ...manifest, logo: `${base}/logo.png`, background: `${base}/logo.png` });
 });
 
@@ -221,7 +258,7 @@ app.get('/meta/:type/:id.json', async (req, res) => {
     const meta = data?.meta;
     if (!isItalianSerieA(meta)) return res.json({ meta: null });
     await loadCoverFiles();
-    return res.json({ ...data, meta: cleanMeta(meta) });
+    return res.json({ ...data, meta: cleanMeta(meta, { mobileBase: (req.query.mobile === '1' || MOBILE_UA.test(req.get('user-agent') || '')) ? publicBase(req) : undefined }) });
   } catch (error) {
     console.error('[meta]', error.message);
     return jsonError(res, 502, 'Impossibile recuperare i dettagli della partita da EasySports.');
