@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.3.5';
+const VERSION = '0.3.6';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -150,17 +150,24 @@ function publicBase(req) {
   return PUBLIC_BASE_URL || `${proto}://${req.get('host')}`;
 }
 
+// Eventi "Simulcast" (o simili): diventano il canale "Diretta Goal" con copertina dedicata.
+const SIMULCAST_RE = /simul\s*cast|simulcas|simulc|simulat/i;
+const DIRETTA_GOAL_NAME = 'Diretta Goal';
+const DIRETTA_GOAL_COVER = 'https://image.discovery.indazn.com/ca/v3/ca/none/4b2pkfqfso35dqdxe5mx6u5m6_image-header_pIt_1756299253000/fit/center/top/none/100/0/0/auto/image';
+const isSimulcast = value => typeof value === 'string' && SIMULCAST_RE.test(cleanMatchTitle(value));
+
 function cleanMeta(meta) {
   if (!meta || typeof meta !== 'object') return meta;
-  const cleanName = cleanMatchTitle(meta.name);
-  const cover = coverForMatch(meta.name || meta.title || '');
+  const simulcast = isSimulcast(meta.name) || isSimulcast(meta.title);
+  const cleanName = simulcast ? DIRETTA_GOAL_NAME : cleanMatchTitle(meta.name);
+  const cover = simulcast ? DIRETTA_GOAL_COVER : coverForMatch(meta.name || meta.title || '');
   const result = {
     ...meta,
     // ID proprio: così Stremio chiede meta e stream a questo addon e non
     // all'addon EasySports originale (che sovrascriverebbe la copertina).
     id: toOwnId(meta.id),
     ...(typeof meta.name === 'string' ? { name: cleanName } : {}),
-    ...(typeof meta.title === 'string' ? { title: cleanMatchTitle(meta.title) } : {}),
+    ...(typeof meta.title === 'string' ? { title: simulcast ? DIRETTA_GOAL_NAME : cleanMatchTitle(meta.title) } : {}),
     ...(cover ? { poster: cover, background: cover, thumbnail: cover } : {})
   };
   if (Array.isArray(meta.videos)) {
