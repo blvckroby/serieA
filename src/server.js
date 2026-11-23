@@ -6,12 +6,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.5.1';
+const VERSION = '0.6.0';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
-const CHAMPIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'covers', 'champions');
-const championsFiles = new Set(readdirSync(CHAMPIONS_DIR).filter(f => f.endsWith('.webp')).map(f => f.toLowerCase()));
+const COVERS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'covers');
+const CHAMPIONS_DIR = path.join(COVERS_DIR, 'champions');
+const EUROPA_DIR = path.join(COVERS_DIR, 'europa');
 
 const app = express();
 app.disable('x-powered-by');
@@ -138,7 +139,6 @@ function cleanMatchTitle(name) {
 }
 
 // ---- UEFA Champions League (copertine locali in src/covers/champions) ----
-const championsSlugs = new Set([...championsFiles].flatMap(f => f.replace(/\.webp$/, '').split('_vs_')));
 const CHAMPIONS_ALIASES = {
   'psg': 'paris-saint-germain', 'paris sg': 'paris-saint-germain', 'paris saint germain': 'paris-saint-germain',
   'bayern': 'bayern-munich', 'bayern munchen': 'bayern-munich', 'fc bayern munchen': 'bayern-munich',
@@ -159,33 +159,50 @@ const CHAMPIONS_ALIASES = {
 };
 const LATIN_FIX = { 'ø': 'o', 'Ø': 'o', 'ð': 'd', 'đ': 'd', 'ł': 'l', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe' };
 
-function championsSlug(value) {
-  const normalized = normalizeTeamName(String(value || '').replace(/[øØðđłßæœ]/g, c => LATIN_FIX[c]))
-    .split(' ').filter(w => !['fc', 'cf', 'sc', 'fk', 'sk', 'afc', 'ac'].includes(w)).join(' ');
-  if (CHAMPIONS_ALIASES[normalized]) return CHAMPIONS_ALIASES[normalized];
-  const direct = normalized.replace(/\s+/g, '-');
-  if (championsSlugs.has(direct)) return direct;
-  const words = new Set(normalized.split(' '));
-  let best = null;
-  for (const slug of championsSlugs) {
-    const slugWords = slug.split('-');
-    if (slugWords.every(w => words.has(w)) && (!best || slugWords.length > best.split('-').length)) best = slug;
+// Copertine locali di una competizione: cartella con file "squadra-casa_vs_squadra-ospite.webp".
+// Se la partita non ha un file dedicato si usa "default.webp" (se presente nella cartella).
+function makeLocalCovers(dir, urlPath) {
+  const files = new Set(readdirSync(dir).filter(f => f.endsWith('.webp')).map(f => f.toLowerCase()));
+  const slugs = new Set([...files].filter(f => f.includes('_vs_')).flatMap(f => f.replace(/\.webp$/, '').split('_vs_')));
+  const url = (base, file) => `${base}${urlPath}/${file}`;
+
+  function slug(value) {
+    const normalized = normalizeTeamName(String(value || '').replace(/[øØðđłßæœ]/g, c => LATIN_FIX[c]))
+      .split(' ').filter(w => !['fc', 'cf', 'sc', 'fk', 'sk', 'afc', 'ac'].includes(w)).join(' ');
+    const plain = normalized.replace(/\s+/g, '-');
+    const alias = CHAMPIONS_ALIASES[normalized];
+    if (alias && slugs.has(alias)) return alias;
+    if (slugs.has(plain)) return plain;
+    const words = new Set(normalized.split(' '));
+    let best = null;
+    for (const candidate of slugs) {
+      const slugWords = candidate.split('-');
+      if (slugWords.every(w => words.has(w)) && (!best || slugWords.length > best.split('-').length)) best = candidate;
+    }
+    if (best) return best;
+    // Nome incompleto (es. "Sporting"): accetta solo se identifica una sola squadra.
+    const partial = [...slugs].filter(candidate => [...words].every(w => candidate.split('-').includes(w)));
+    if (partial.length === 1) return partial[0];
+    return alias || plain; // nome non ancora noto: prova comunque il nome "pulito" come nome file
   }
-  if (best) return best;
-  // Nome incompleto (es. "Sporting"): accetta solo se identifica una sola squadra.
-  const partial = [...championsSlugs].filter(slug => [...words].every(w => slug.split('-').includes(w)));
-  return partial.length === 1 ? partial[0] : null;
+
+  return {
+    files,
+    cover(name, base) {
+      const match = cleanMatchTitle(name).match(/^(.+?)\s+(?:vs\.?|v\.?|[-–—])\s+(.+)$/i);
+      if (match) {
+        const file = `${slug(match[1])}_vs_${slug(match[2])}.webp`;
+        if (files.has(file)) return url(base, file);
+      }
+      return files.has('default.webp') ? url(base, 'default.webp') : null;
+    }
+  };
 }
 
-function championsCover(name, base) {
-  const match = cleanMatchTitle(name).match(/^(.+?)\s+(?:vs\.?|v\.?|[-–—])\s+(.+)$/i);
-  if (!match) return null;
-  const home = championsSlug(match[1]);
-  const away = championsSlug(match[2]);
-  if (!home || !away) return null;
-  const filename = `${home}_vs_${away}.webp`;
-  return championsFiles.has(filename) ? `${base}/covers/champions/${filename}` : null;
-}
+const championsCovers = makeLocalCovers(CHAMPIONS_DIR, '/covers/champions');
+const europaCovers = makeLocalCovers(EUROPA_DIR, '/covers/europa');
+const championsCover = (name, base) => championsCovers.cover(name, base);
+const europaCover = (name, base) => europaCovers.cover(name, base);
 
 async function loadCoverFiles() {
   if (coverFilesLoadedAt && Date.now() - coverFilesLoadedAt < 10 * 60_000) return coverFiles;
@@ -238,7 +255,8 @@ function cleanMeta(meta, base) {
   const cover = simulcast ? (league === 'europa-league' ? DIRETTA_GOAL_EUROPA_COVER : DIRETTA_GOAL_COVER)
     : champions ? championsCover(meta.name || meta.title || '', base)
     : league === 'serie-a' ? coverForMatch(meta.name || meta.title || '')
-    : null; // Europa League: copertina originale EasySports finché non ci sono quelle personalizzate
+    : league === 'europa-league' ? europaCover(meta.name || meta.title || '', base)
+    : null;
   const result = {
     ...meta,
     // ID proprio: così Stremio chiede meta e stream a questo addon e non
@@ -291,7 +309,8 @@ app.get('/logo.png', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.sendFile(LOGO_PATH);
 });
-app.use('/covers/champions', express.static(CHAMPIONS_DIR, { maxAge: '1d', immutable: false }));
+app.use('/covers/champions', express.static(CHAMPIONS_DIR, { maxAge: '1d' }));
+app.use('/covers/europa', express.static(EUROPA_DIR, { maxAge: '1d' }));
 app.get('/manifest.json', (req, res) => {
   // Senza PUBLIC_BASE_URL ricava l'URL pubblico dalla richiesta.
   const base = publicBase(req);
