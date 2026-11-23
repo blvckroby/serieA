@@ -99,3 +99,13 @@ MOCK_EVENTS_FILE=miei-eventi.json npm run demo
 ### Copertine Europa League
 
 Cartella `src/covers/europa/`: `default.webp` è la copertina usata per tutte le partite che non ne hanno una dedicata. Per una partita specifica aggiungi `squadra-casa_vs_squadra-ospite.webp` (minuscolo, nomi con i trattini, per esempio `real-sociedad_vs_viktoria-plzen.webp`) e rifai il deploy: ha la precedenza sulla copertina di default.
+
+## Catalogo unico con scelta della competizione
+
+Il manifest espone un solo catalogo, `Calcio`, con il filtro **genere**: Serie A, Serie B, Champions League, Europa League, Premier League, Ligue 1, Bundesliga, La Liga. Senza genere selezionato mostra tutte le competizioni abilitate.
+
+Il riconoscimento usa il titolo EasySports (`Paese - Lega :`), in modo stretto: per esempio `Italy - Serie B :`, `England - Premier League :`, `France - Ligue 1 :`, `Germany - Bundesliga :`, `Spain - La Liga :`, `UEFA Champions League :`, `UEFA Europa League :`. Restano fuori Serie C, La Liga 2, Bundesliga austriaca, AFC/CAF Champions League, Conference League e le versioni femminili. Se un titolo reale è scritto diversamente, basta correggere la riga corrispondente in `LEAGUES` in `src/server.js`.
+
+### Pagina di configurazione
+
+Apri `https://TUO-DOMINIO/configure` (in Stremio è il pulsante *Configura* dell'addon): spunti le competizioni che vuoi, poi premi *Installa in Stremio* oppure copia il link. Il link con una scelta parziale ha la forma `https://TUO-DOMINIO/cfg/serie-a,la-liga/manifest.json`: il catalogo, il filtro genere e le richieste di scheda e stream sono limitati a quelle competizioni. Senza spunte parziali vale `https://TUO-DOMINIO/manifest.json` (tutte).
