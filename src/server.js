@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.6.0';
+const VERSION = '0.7.1';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -56,25 +56,39 @@ function upstreamUrl(resource, type, id) {
   return `${upstreamPrefix}/${resource}/${safeType}/${safeId}.json`;
 }
 
-function isItalianSerieA(meta) {
-  // Deliberately strict: excludes Serie B/C and other countries' Serie A leagues.
-  return typeof meta?.name === 'string' && /\bItaly\s*-\s*Serie\s*A\s*:/i.test(meta.name);
-}
+// Competizioni supportate. Il titolo EasySports ha la forma "⚽ Paese - Lega : Casa vs Ospite";
+// i riconoscimenti sono volutamente stretti (niente Serie C, Bundesliga austriaca, AFC/CAF Champions League, ecc.).
+const LEAGUES = [
+  { key: 'serie-a', label: 'Serie A', re: /\bItaly\s*-\s*Serie\s*A\s*:/i },
+  { key: 'serie-b', label: 'Serie B', re: /\bItaly\s*-\s*Serie\s*B\s*:/i },
+  { key: 'champions-league', label: 'Champions League', re: /\bUEFA\s*Champions\s*League\s*:/i },
+  { key: 'europa-league', label: 'Europa League', re: /\bUEFA\s*Europa\s*League\s*:/i },
+  { key: 'premier-league', label: 'Premier League', re: /\bEngland\s*-\s*Premier\s*League\s*:/i },
+  { key: 'ligue-1', label: 'Ligue 1', re: /\bFrance\s*-\s*Ligue\s*1\s*:/i },
+  { key: 'bundesliga', label: 'Bundesliga', re: /\bGermany\s*-\s*Bundesliga\s*:/i },
+  { key: 'la-liga', label: 'La Liga', re: /\bSpain\s*-\s*La\s*?Liga\s*:/i }
+];
+const LEAGUE_KEYS = LEAGUES.map(l => l.key);
+const LEAGUE_STRIP_RE = new RegExp(`^.*?(?:${LEAGUES.map(l => l.re.source).join('|')})\\s*`, 'iu');
 
-function isChampionsLeague(meta) {
+function leagueOf(meta) {
   const name = meta?.name;
-  // Solo la Champions League maschile (esclude "Women's Champions League").
-  return typeof name === 'string' && /Champions\s*League\s*:/i.test(name) && !/women|femminile/i.test(name);
+  if (typeof name !== 'string' || /women|femminile/i.test(name)) return undefined;
+  return LEAGUES.find(l => l.re.test(name))?.key;
 }
+const isSupportedEvent = meta => Boolean(leagueOf(meta));
 
-function isEuropaLeague(meta) {
-  const name = meta?.name;
-  return typeof name === 'string' && /Europa\s*League\s*:/i.test(name) && !/women|femminile/i.test(name);
-}
-
-const LEAGUE_CHECKS = { 'serie-a': isItalianSerieA, 'champions-league': isChampionsLeague, 'europa-league': isEuropaLeague };
-const isSupportedEvent = meta => Object.values(LEAGUE_CHECKS).some(check => check(meta));
-const leagueOf = meta => Object.keys(LEAGUE_CHECKS).find(key => LEAGUE_CHECKS[key](meta));
+// ---- Configurazione: elenco competizioni abilitate nell'URL di installazione (/cfg/serie-a,la-liga/manifest.json) ----
+app.use((req, _res, next) => {
+  const m = req.url.match(/^\/cfg\/([a-z0-9,-]*)(\/.*)?$/i);
+  if (m) {
+    const keys = m[1].split(',').filter(k => LEAGUE_KEYS.includes(k));
+    req.enabled = keys.length ? keys : undefined;
+    req.url = m[2] || '/';
+  }
+  next();
+});
+const enabledKeys = req => req.enabled || LEAGUE_KEYS;
 
 const TEAM_ALIASES = [
   [['ac monza', 'monza'], 'monza'],
@@ -121,13 +135,8 @@ function teamSlug(value) {
 function stripCompetitionPrefix(name) {
   if (typeof name !== 'string') return name;
   return name
-    // Handles leading flags/emojis before the competition label as well.
-    .replace(/^\s*(?:[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D\s]*)Italy\s*-\s*Serie\s*A\s*:\s*/iu, '')
-    .replace(/^\s*Italy\s*-\s*Serie\s*A\s*:\s*/i, '')
-    // Champions League: toglie qualsiasi prefisso (bandiere, "Europe -", "UEFA") fino ai due punti.
-    .replace(/^.*?Champions\s*League\s*:\s*/iu, '')
-    // Europa League: stessa logica.
-    .replace(/^.*?Europa\s*League\s*:\s*/iu, '')
+    // Toglie bandiere/icone e il prefisso "Paese - Lega :" di qualunque competizione supportata.
+    .replace(LEAGUE_STRIP_RE, '')
     .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D]/gu, '')
     .replace(/\s+/g, ' ')
     .replace(/^[-–—:|•\s]+|[-–—:|•\s]+$/g, '')
@@ -155,6 +164,14 @@ const CHAMPIONS_ALIASES = {
   'as roma': 'roma', 'ssc napoli': 'napoli', 'sk slovan bratislava': 'slovan-bratislava',
   'aek': 'aek-athens', 'aek athens fc': 'aek-athens', 'brugge': 'club-brugge', 'psv eindhoven': 'psv',
   'fc barcelona': 'barcelona', 'real madrid cf': 'real-madrid', 'vfb stuttgart': 'stuttgart',
+  'hapoel be er sheva': 'hapoel-beer-sheva', 'hapoel beer sheva': 'hapoel-beer-sheva', 'sparta praha': 'sparta-prague',
+  'olympiakos': 'olympiacos', 'olympiakos piraeus': 'olympiacos', 'olympiacos piraeus': 'olympiacos',
+  'union st gilloise': 'union-saint-gilloise', 'royale union saint gilloise': 'union-saint-gilloise',
+  'ferencvarosi tc': 'ferencvaros', 'ferencvarosi': 'ferencvaros', 'rb salzburg': 'salzburg', 'red bull salzburg': 'salzburg',
+  'fc salzburg': 'salzburg', 'besiktas jk': 'besiktas', 'celta': 'celta-vigo', 'celta de vigo': 'celta-vigo',
+  'ofi': 'ofi-crete', 'ofi crete': 'ofi-crete', 'ararat armenia': 'ararat-armenia', 'dinamo zagreb': 'dinamo-zagreb', 'gnk dinamo zagreb': 'dinamo-zagreb',
+  'omonia': 'omonia-nicosia', 'ac omonia': 'omonia-nicosia', 'bodo/glimt': 'bodo-glimt', 'real sociedad de futbol': 'real-sociedad',
+  'olympique lyonnais': 'lyon', 'stade rennais': 'rennes', 'stade rennais fc': 'rennes', 'nec': 'nec-nijmegen',
   'rc lens': 'lens', 'losc lille': 'lille', 'lask linz': 'lask', 'fc porto': 'porto', 'como 1907': 'como'
 };
 const LATIN_FIX = { 'ø': 'o', 'Ø': 'o', 'ð': 'd', 'đ': 'd', 'ł': 'l', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe' };
@@ -162,9 +179,21 @@ const LATIN_FIX = { 'ø': 'o', 'Ø': 'o', 'ð': 'd', 'đ': 'd', 'ł': 'l', 'ß':
 // Copertine locali di una competizione: cartella con file "squadra-casa_vs_squadra-ospite.webp".
 // Se la partita non ha un file dedicato si usa "default.webp" (se presente nella cartella).
 function makeLocalCovers(dir, urlPath) {
-  const files = new Set(readdirSync(dir).filter(f => f.endsWith('.webp')).map(f => f.toLowerCase()));
-  const slugs = new Set([...files].filter(f => f.includes('_vs_')).flatMap(f => f.replace(/\.webp$/, '').split('_vs_')));
-  const url = (base, file) => `${base}${urlPath}/${file}`;
+  // Accetta webp/png/jpg. Nome canonico: minuscolo, con i trattini anche al posto di "_" dentro i nomi squadra
+  // (es. "crystal_palace_vs_real_sociedad.png" -> "crystal-palace_vs_real-sociedad").
+  const canonical = new Map();
+  let defaultFile = null;
+  for (const file of readdirSync(dir)) {
+    const m = file.match(/^(.+)\.(webp|png|jpe?g)$/i);
+    if (!m) continue;
+    const stem = m[1].toLowerCase();
+    if (stem === 'default') { defaultFile = file; continue; }
+    if (!stem.includes('_vs_')) continue;
+    const [home, away] = stem.split('_vs_').map(t => t.replace(/_/g, '-'));
+    canonical.set(`${home}_vs_${away}`, file);
+  }
+  const slugs = new Set([...canonical.keys()].flatMap(k => k.split('_vs_')));
+  const url = (base, file) => `${base}${urlPath}/${encodeURIComponent(file)}`;
 
   function slug(value) {
     const normalized = normalizeTeamName(String(value || '').replace(/[øØðđłßæœ]/g, c => LATIN_FIX[c]))
@@ -187,14 +216,14 @@ function makeLocalCovers(dir, urlPath) {
   }
 
   return {
-    files,
+    files: canonical,
     cover(name, base) {
       const match = cleanMatchTitle(name).match(/^(.+?)\s+(?:vs\.?|v\.?|[-–—])\s+(.+)$/i);
       if (match) {
-        const file = `${slug(match[1])}_vs_${slug(match[2])}.webp`;
-        if (files.has(file)) return url(base, file);
+        const file = canonical.get(`${slug(match[1])}_vs_${slug(match[2])}`);
+        if (file) return url(base, file);
       }
-      return files.has('default.webp') ? url(base, 'default.webp') : null;
+      return defaultFile ? url(base, defaultFile) : null;
     }
   };
 }
@@ -286,24 +315,26 @@ async function getUpstreamEvents(force = false) {
   return metas;
 }
 
-const manifest = {
-  id: 'it.roby.seriea.easysports',
-  version: VERSION,
-  name: 'Serie A + Europa',
-  description: 'Eventi della Serie A italiana, della UEFA Champions League e della UEFA Europa League, con gli stream forniti da EasySports.',
-  logo: `${PUBLIC_BASE_URL}/logo.png?v=${LOGO_HASH}`,
-  resources: ['catalog', 'meta', 'stream'],
-  types: ['Live Sports'],
-  idPrefixes: [ID_PREFIX],
-  catalogs: [
-    { type: 'Live Sports', id: 'serie-a', name: 'Serie A' },
-    { type: 'Live Sports', id: 'champions-league', name: 'UEFA Champions League' },
-    { type: 'Live Sports', id: 'europa-league', name: 'UEFA Europa League' }
-  ],
-  behaviorHints: { configurable: false, configurationRequired: false }
-};
+function buildManifest(req) {
+  const base = publicBase(req);
+  const options = LEAGUES.filter(l => enabledKeys(req).includes(l.key)).map(l => l.label);
+  return {
+    id: 'it.roby.seriea.easysports',
+    version: VERSION,
+    name: 'Calcio Live',
+    description: 'Serie A, Serie B, Champions League, Europa League, Premier League, Ligue 1, Bundesliga e La Liga, con gli stream forniti da EasySports.',
+    logo: `${base}/logo.png?v=${LOGO_HASH}`,
+    background: `${base}/logo.png?v=${LOGO_HASH}`,
+    resources: ['catalog', 'meta', 'stream'],
+    types: ['Live Sports'],
+    idPrefixes: [ID_PREFIX],
+    // Un solo catalogo: il genere sceglie la competizione (senza genere: tutte quelle abilitate).
+    catalogs: [{ type: 'Live Sports', id: 'calcio', name: 'Calcio', extra: [{ name: 'genre', options, isRequired: false }] }],
+    behaviorHints: { configurable: true, configurationRequired: false }
+  };
+}
 
-app.get('/', (_req, res) => res.json({ name: 'Serie A + Europa addon', manifest: '/manifest.json' }));
+app.get('/', (_req, res) => res.json({ name: 'Calcio Live addon', manifest: '/manifest.json', configure: '/configure' }));
 app.get('/health', (_req, res) => res.json({ ok: true, version: VERSION, logo: LOGO_HASH, upstreamConfigured: Boolean(upstreamPrefix) }));
 app.get('/logo.png', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
@@ -311,26 +342,58 @@ app.get('/logo.png', (_req, res) => {
 });
 app.use('/covers/champions', express.static(CHAMPIONS_DIR, { maxAge: '1d' }));
 app.use('/covers/europa', express.static(EUROPA_DIR, { maxAge: '1d' }));
-app.get('/manifest.json', (req, res) => {
-  // Senza PUBLIC_BASE_URL ricava l'URL pubblico dalla richiesta.
-  const base = publicBase(req);
-  res.json({ ...manifest, logo: `${base}/logo.png?v=${LOGO_HASH}`, background: `${base}/logo.png?v=${LOGO_HASH}` });
+app.get('/manifest.json', (req, res) => res.json(buildManifest(req)));
+
+app.get('/configure', (req, res) => {
+  const checked = new Set(enabledKeys(req));
+  const items = LEAGUES.map(l => `<label><input type="checkbox" value="${l.key}"${checked.has(l.key) ? ' checked' : ''}> ${l.label}</label>`).join('\n');
+  res.type('html').send(`<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Calcio Live – configurazione</title><style>
+:root{color-scheme:light dark}body{font:16px system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px}
+img{width:72px;height:72px;border-radius:16px}h1{font-size:22px;margin:8px 0}label{display:flex;gap:10px;align-items:center;padding:12px;border:1px solid #8886;border-radius:10px;margin:8px 0}
+button,a.btn{display:block;width:100%;box-sizing:border-box;text-align:center;padding:14px;margin:12px 0;border-radius:10px;border:0;background:#0b3d91;color:#fff;font-size:16px;text-decoration:none;cursor:pointer}
+button.alt{background:#555;color:#fff}code{word-break:break-all;font-size:13px}
+</style></head><body>
+<img src="/logo.png?v=${LOGO_HASH}" alt=""><h1>Calcio Live</h1>
+<p>Scegli le competizioni che vuoi vedere nel catalogo, poi installa l'addon.</p>
+${items}
+<a class="btn" id="install" href="#">Installa in Stremio</a>
+<button class="alt" id="copy">Copia link manifest</button>
+<p><code id="url"></code></p>
+<script>
+const boxes=[...document.querySelectorAll('input[type=checkbox]')];
+function manifestPath(){const on=boxes.filter(b=>b.checked).map(b=>b.value);
+ return (on.length===0||on.length===boxes.length)?'/manifest.json':'/cfg/'+on.join(',')+'/manifest.json'}
+function refresh(){const p=manifestPath();document.getElementById('url').textContent=location.origin+p;
+ document.getElementById('install').href='stremio://'+location.host+p}
+boxes.forEach(b=>b.addEventListener('change',refresh));refresh();
+document.getElementById('copy').onclick=()=>{navigator.clipboard?.writeText(location.origin+manifestPath());document.getElementById('copy').textContent='Copiato!'};
+</script></body></html>`);
 });
 
-app.get('/catalog/:type/:catalogId.json', async (req, res) => {
+// Catalogo unico: il "genere" seleziona la competizione. I vecchi ID (serie-a, ...) restano validi.
+async function handleCatalog(req, res) {
   const { type, catalogId } = req.params;
-  if (type !== 'Live Sports' || !LEAGUE_CHECKS[catalogId]) return res.json({ metas: [] });
+  const legacy = LEAGUE_KEYS.includes(catalogId);
+  if (type !== 'Live Sports' || (catalogId !== 'calcio' && !legacy)) return res.json({ metas: [] });
   try {
+    const extra = new URLSearchParams(req.params.extra || '');
+    const genre = extra.get('genre');
+    let keys = enabledKeys(req);
+    if (legacy) keys = keys.filter(k => k === catalogId);
+    if (genre) keys = keys.filter(k => LEAGUES.find(l => l.key === k).label.toLowerCase() === genre.toLowerCase());
     const base = publicBase(req);
     const metas = (await getUpstreamEvents(req.query.refresh === '1'))
-      .filter(LEAGUE_CHECKS[catalogId]).map(meta => cleanMeta(meta, base));
+      .filter(meta => keys.includes(leagueOf(meta))).map(meta => cleanMeta(meta, base));
     res.set({ 'Cache-Control': 'no-store', Vary: 'User-Agent' });
     return res.json({ metas });
   } catch (error) {
     console.error('[catalog]', error.message);
     return jsonError(res, 502, 'Impossibile recuperare il catalogo da EasySports.');
   }
-});
+}
+app.get('/catalog/:type/:catalogId.json', handleCatalog);
+app.get('/catalog/:type/:catalogId/:extra.json', handleCatalog);
 
 app.get('/meta/:type/:id.json', async (req, res) => {
   const { type } = req.params;
@@ -339,7 +402,7 @@ app.get('/meta/:type/:id.json', async (req, res) => {
   try {
     const data = await fetchJson(upstreamUrl('meta', type, id));
     const meta = data?.meta;
-    if (!isSupportedEvent(meta)) return res.json({ meta: null });
+    if (!enabledKeys(req).includes(leagueOf(meta))) return res.json({ meta: null });
     await loadCoverFiles();
     return res.json({ ...data, meta: cleanMeta(meta, publicBase(req)) });
   } catch (error) {
@@ -355,7 +418,8 @@ app.get('/stream/:type/:id.json', async (req, res) => {
   try {
     // Validate the event against the filtered league before forwarding its original ID.
     const metas = await getUpstreamEvents();
-    if (!metas.some(item => item.id === id)) return res.json({ streams: [] });
+    const event = metas.find(item => item.id === id);
+    if (!event || !enabledKeys(req).includes(leagueOf(event))) return res.json({ streams: [] });
     const data = await fetchJson(upstreamUrl('stream', type, id));
     return res.json(data);
   } catch (error) {
