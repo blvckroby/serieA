@@ -1,4 +1,9 @@
 import express from 'express';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
+const ID_PREFIX = 'seriea:';
 
 const app = express();
 app.disable('x-powered-by');
@@ -131,16 +136,30 @@ function coverForMatch(name) {
   return `${COVERS_RAW_BASE}/${filename}`;
 }
 
+const toOwnId = id => (typeof id === 'string' && !id.startsWith(ID_PREFIX) ? ID_PREFIX + id : id);
+const toUpstreamId = id => (id.startsWith(ID_PREFIX) ? id.slice(ID_PREFIX.length) : id);
+
 function cleanMeta(meta) {
   if (!meta || typeof meta !== 'object') return meta;
   const cleanName = cleanMatchTitle(meta.name);
   const cover = coverForMatch(meta.name || meta.title || '');
-  return {
+  const result = {
     ...meta,
+    // ID proprio: così Stremio chiede meta e stream a questo addon e non
+    // all'addon EasySports originale (che sovrascriverebbe la copertina).
+    id: toOwnId(meta.id),
     ...(typeof meta.name === 'string' ? { name: cleanName } : {}),
     ...(typeof meta.title === 'string' ? { title: cleanMatchTitle(meta.title) } : {}),
-    ...(cover ? { poster: cover, background: cover } : {})
+    ...(cover ? { poster: cover, background: cover, thumbnail: cover } : {})
   };
+  if (Array.isArray(meta.videos)) {
+    result.videos = meta.videos.map(video => ({
+      ...video,
+      id: toOwnId(video?.id),
+      ...(cover ? { thumbnail: cover } : {})
+    }));
+  }
+  return result;
 }
 
 async function getSerieACatalog(force = false) {
@@ -156,20 +175,29 @@ async function getSerieACatalog(force = false) {
 
 const manifest = {
   id: 'it.roby.seriea.easysports',
-  version: '0.2.0',
+  version: '0.3.0',
   name: 'Serie A Italia',
   description: 'Solo eventi della Serie A italiana, con gli stream forniti da EasySports.',
-  logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Serie_A_logo_2022.svg/512px-Serie_A_logo_2022.svg.png',
+  logo: `${PUBLIC_BASE_URL}/logo.png`,
   resources: ['catalog', 'meta', 'stream'],
   types: ['Live Sports'],
-  idPrefixes: ['soccer:'],
+  idPrefixes: [ID_PREFIX],
   catalogs: [{ type: 'Live Sports', id: 'serie-a', name: 'Serie A' }],
   behaviorHints: { configurable: false, configurationRequired: false }
 };
 
 app.get('/', (_req, res) => res.json({ name: 'Serie A Italia addon', manifest: '/manifest.json' }));
 app.get('/health', (_req, res) => res.json({ ok: true, upstreamConfigured: Boolean(upstreamPrefix) }));
-app.get('/manifest.json', (_req, res) => res.json(manifest));
+app.get('/logo.png', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.sendFile(LOGO_PATH);
+});
+app.get('/manifest.json', (req, res) => {
+  // Senza PUBLIC_BASE_URL ricava l'URL pubblico dalla richiesta.
+  const proto = req.get('x-forwarded-proto')?.split(',')[0] || req.protocol;
+  const base = PUBLIC_BASE_URL || `${proto}://${req.get('host')}`;
+  res.json({ ...manifest, logo: `${base}/logo.png`, background: `${base}/logo.png` });
+});
 
 app.get('/catalog/:type/:catalogId.json', async (req, res) => {
   const { type, catalogId } = req.params;
@@ -185,7 +213,8 @@ app.get('/catalog/:type/:catalogId.json', async (req, res) => {
 });
 
 app.get('/meta/:type/:id.json', async (req, res) => {
-  const { type, id } = req.params;
+  const { type } = req.params;
+  const id = toUpstreamId(req.params.id);
   if (type !== 'Live Sports' || !id.startsWith('soccer:')) return res.json({ meta: null });
   try {
     const data = await fetchJson(upstreamUrl('meta', type, id));
@@ -200,12 +229,13 @@ app.get('/meta/:type/:id.json', async (req, res) => {
 });
 
 app.get('/stream/:type/:id.json', async (req, res) => {
-  const { type, id } = req.params;
+  const { type } = req.params;
+  const id = toUpstreamId(req.params.id);
   if (type !== 'Live Sports' || !id.startsWith('soccer:')) return res.json({ streams: [] });
   try {
     // Validate the event against the filtered league before forwarding its original ID.
     const metas = await getSerieACatalog();
-    if (!metas.some(item => item.id === id)) return res.json({ streams: [] });
+    if (!metas.some(item => item.id === toOwnId(id))) return res.json({ streams: [] });
     const data = await fetchJson(upstreamUrl('stream', type, id));
     return res.json(data);
   } catch (error) {
