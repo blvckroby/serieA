@@ -163,7 +163,7 @@ test('Europa League: copertina di default servita e usata come sfondo', async ()
 test('catalogo senza genere: tutte le competizioni supportate, niente Serie C / AFC / Bundesliga austriaca / La Liga 2', async () => {
   const metas = (await json('/catalog/Live%20Sports/calcio.json')).metas;
   const ids = metas.map(m => m.id.replace('seriea:soccer:', '')).sort((a, b) => a - b);
-  assert.deepEqual(ids, ['1', '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '15', '16', '17', '21', '22', '23', '24', '25', '26', '27', '28'].sort((a, b) => a - b));
+  assert.deepEqual(ids, ['1', '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '15', '16', '17', '21', '22', '23', '24', '25', '26', '27', '28', '29'].sort((a, b) => a - b));
 });
 
 test('altre competizioni: titolo pulito dal prefisso e dalle bandiere', async () => {
@@ -177,7 +177,7 @@ test('altre competizioni: titolo pulito dal prefisso e dalle bandiere', async ()
 test('ogni genere contiene solo la sua competizione', async () => {
   assert.deepEqual((await catalog('bundesliga')).map(m => m.id), ['seriea:soccer:17']);
   assert.deepEqual((await catalog('la-liga')).map(m => m.id), ['seriea:soccer:7', 'seriea:soccer:21']);
-  assert.deepEqual((await catalog('serie-b')).map(m => m.id), ['seriea:soccer:10', 'seriea:soccer:27']);
+  assert.deepEqual((await catalog('serie-b')).map(m => m.id), ['seriea:soccer:10', 'seriea:soccer:27', 'seriea:soccer:29']);
 });
 
 test('configurazione: /cfg/ limita le competizioni nel manifest, nel catalogo, in meta e stream', async () => {
@@ -251,4 +251,15 @@ test('pagina configure: schede a tema, stemmi, link e script', async () => {
   assert.equal((html.match(/<svg class="emblem"/g) || []).length, 8);
   for (const c of ['--c1:', 'stremio://', 'web.stremio.com', '8 competizioni']) assert.ok(html.includes(c), c);
   assert.ok(!html.includes('{{'), 'segnaposto non sostituiti');
+});
+
+test('Serie B: Simulcast diventa Zona Goal con la sua copertina', async () => {
+  const m = byId(await catalog('serie-b'), 29);
+  assert.equal(m.name, 'Zona Goal');
+  assert.equal(m.poster, 'https://addon.test/covers/serie-b/zona-goal.webp');
+  assert.equal(m.background, m.poster);
+  assert.equal((await fetch(`${BASE}/covers/serie-b/zona-goal.webp`)).status, 200);
+  const { meta } = await json('/meta/Live%20Sports/seriea%3Asoccer%3A29.json');
+  assert.equal(meta.name, 'Zona Goal');
+  assert.equal(meta.poster, m.poster);
 });

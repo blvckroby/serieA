@@ -28,6 +28,7 @@ const events = process.env.MOCK_EVENTS_FILE ? JSON.parse(readFileSync(process.en
   { id: 'soccer:24', name: "⚽ UEFA Europa League : Hapoel Be'er Sheva 🇮🇱 vs Celta Vigo 🇪🇸" },
   { id: 'soccer:27', name: '⚽ Italy Serie B : Spezia 🇮🇹 vs Cesena 🇮🇹' },
   { id: 'soccer:28', name: '⚽ England Premier League : Liverpool vs Everton' },
+  { id: 'soccer:29', name: '⚽ Italy Serie B : Simulcast' },
   { id: 'soccer:26', name: '⚽ UEFA Champions League : Simulcast' },
   { id: 'soccer:25', name: '⚽ UEFA Europa League : Olympique Lyonnais vs Union St. Gilloise' }
 ];

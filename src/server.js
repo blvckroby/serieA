@@ -7,7 +7,7 @@ import { LEAGUE_ART } from './league-art.js';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.9.0';
+const VERSION = '0.9.1';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -289,10 +289,16 @@ const isSimulcast = value => typeof value === 'string' && SIMULCAST_RE.test(clea
 function cleanMeta(meta, base) {
   if (!meta || typeof meta !== 'object') return meta;
   const league = leagueOf(meta);
-  const simulcast = (league === 'serie-a' || league === 'europa-league' || league === 'champions-league') && (isSimulcast(meta.name) || isSimulcast(meta.title));
-  const cleanName = simulcast ? DIRETTA_GOAL_NAME : cleanMatchTitle(meta.name);
-  const cover = simulcast ? (league === 'europa-league' ? DIRETTA_GOAL_EUROPA_COVER
-      : league === 'champions-league' ? `${base}/covers/champions/diretta-goal.webp` : DIRETTA_GOAL_COVER)
+  // Canale Simulcast: nome e copertina dedicati per competizione (Serie B: "Zona Goal").
+  const simulcastInfo = (isSimulcast(meta.name) || isSimulcast(meta.title)) ? {
+    'serie-a': { name: DIRETTA_GOAL_NAME, cover: DIRETTA_GOAL_COVER },
+    'europa-league': { name: DIRETTA_GOAL_NAME, cover: DIRETTA_GOAL_EUROPA_COVER },
+    'champions-league': { name: DIRETTA_GOAL_NAME, cover: `${base}/covers/champions/diretta-goal.webp` },
+    'serie-b': { name: 'Zona Goal', cover: `${base}/covers/serie-b/zona-goal.webp` }
+  }[league] : undefined;
+  const simulcast = Boolean(simulcastInfo);
+  const cleanName = simulcast ? simulcastInfo.name : cleanMatchTitle(meta.name);
+  const cover = simulcast ? simulcastInfo.cover
     : league === 'serie-a' ? coverForMatch(meta.name || meta.title || '')
     : localCovers[league]?.cover(meta.name || meta.title || '', base) ?? null;
   const result = {
@@ -301,7 +307,7 @@ function cleanMeta(meta, base) {
     // all'addon EasySports originale (che sovrascriverebbe la copertina).
     id: toOwnId(meta.id),
     ...(typeof meta.name === 'string' ? { name: cleanName } : {}),
-    ...(typeof meta.title === 'string' ? { title: simulcast ? DIRETTA_GOAL_NAME : cleanMatchTitle(meta.title) } : {}),
+    ...(typeof meta.title === 'string' ? { title: simulcast ? simulcastInfo.name : cleanMatchTitle(meta.title) } : {}),
     ...(cover ? { poster: cover, background: cover, thumbnail: cover } : {})
   };
   if (Array.isArray(meta.videos)) {
