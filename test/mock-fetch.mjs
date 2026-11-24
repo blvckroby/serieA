@@ -26,6 +26,7 @@ const events = process.env.MOCK_EVENTS_FILE ? JSON.parse(readFileSync(process.en
   { id: 'soccer:22', name: '⚽ UEFA Europa League : Real Sociedad 🇪🇸 vs FC Viktoria Plzeň 🇨🇿' },
   { id: 'soccer:23', name: "⚽ UEFA Europa League : Crystal Palace 🏴 vs Real Sociedad 🇪🇸" },
   { id: 'soccer:24', name: "⚽ UEFA Europa League : Hapoel Be'er Sheva 🇮🇱 vs Celta Vigo 🇪🇸" },
+  { id: 'soccer:26', name: '⚽ UEFA Champions League : Simulcast' },
   { id: 'soccer:25', name: '⚽ UEFA Europa League : Olympique Lyonnais vs Union St. Gilloise' }
 ];
 const real = globalThis.fetch;

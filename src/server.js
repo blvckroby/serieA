@@ -6,7 +6,7 @@ import { readFileSync, readdirSync, mkdirSync } from 'node:fs';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.8.0';
+const VERSION = '0.8.1';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -288,9 +288,10 @@ const isSimulcast = value => typeof value === 'string' && SIMULCAST_RE.test(clea
 function cleanMeta(meta, base) {
   if (!meta || typeof meta !== 'object') return meta;
   const league = leagueOf(meta);
-  const simulcast = (league === 'serie-a' || league === 'europa-league') && (isSimulcast(meta.name) || isSimulcast(meta.title));
+  const simulcast = (league === 'serie-a' || league === 'europa-league' || league === 'champions-league') && (isSimulcast(meta.name) || isSimulcast(meta.title));
   const cleanName = simulcast ? DIRETTA_GOAL_NAME : cleanMatchTitle(meta.name);
-  const cover = simulcast ? (league === 'europa-league' ? DIRETTA_GOAL_EUROPA_COVER : DIRETTA_GOAL_COVER)
+  const cover = simulcast ? (league === 'europa-league' ? DIRETTA_GOAL_EUROPA_COVER
+      : league === 'champions-league' ? `${base}/covers/champions/diretta-goal.webp` : DIRETTA_GOAL_COVER)
     : league === 'serie-a' ? coverForMatch(meta.name || meta.title || '')
     : localCovers[league]?.cover(meta.name || meta.title || '', base) ?? null;
   const result = {

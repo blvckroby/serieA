@@ -72,7 +72,7 @@ BASE=https://TUO-DOMINIO npm run verify
 
 L'addon pubblica due cataloghi: `Serie A` e `UEFA Champions League` (eventi il cui titolo contiene `Champions League :`, esclusa la versione femminile). Le copertine Champions sono in `src/covers/champions/` (formato `squadra-casa_vs_squadra-ospite.webp`, con i nomi delle squadre separati da trattini) e vengono servite dall'addon su `/covers/champions/`. Per aggiungerne di nuove copia il file nella cartella e rifai il deploy. Se non esiste la copertina di una partita, resta quella originale EasySports.
 
-Gli eventi `Simulcast` della Serie A diventano `Diretta Goal` con copertina dedicata.
+Gli eventi `Simulcast` di Serie A, Champions ed Europa League diventano `Diretta Goal` con una copertina dedicata per competizione (quella della Champions è `src/covers/champions/diretta-goal.webp`).
 
 Anche la `UEFA Europa League` ha un catalogo (titoli `Europa League :`, esclusa la femminile); per ora usa le copertine originali EasySports, tranne gli eventi `Simulcast`, che diventano `Diretta Goal` con una copertina dedicata.
 
