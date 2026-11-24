@@ -247,7 +247,7 @@ test('Serie B: riconosciuta anche senza trattino ("Italy Serie B :") e titolo pu
 
 test('pagina configure: schede a tema, stemmi, link e script', async () => {
   const html = await (await fetch(`${BASE}/configure`)).text();
-  assert.equal((html.match(/class="card"/g) || []).length, 8);
+  assert.equal((html.match(/class="card[ "]/g) || []).length, 8);
   // stemma disegnato oppure logo ufficiale caricato in src/assets/leagues
   assert.equal((html.match(/<svg class="emblem"|<img class="emblem-img"/g) || []).length, 8);
   for (const c of ['--c1:', 'stremio://', 'web.stremio.com', '8 competizioni']) assert.ok(html.includes(c), c);
@@ -263,4 +263,13 @@ test('Serie B: Simulcast diventa Zona Goal con la sua copertina', async () => {
   const { meta } = await json('/meta/Live%20Sports/seriea%3Asoccer%3A29.json');
   assert.equal(meta.name, 'Zona Goal');
   assert.equal(meta.poster, m.poster);
+});
+
+test('pagina configure: sfondo foto su sei schede (Bundesliga e La Liga restano a colori)', async () => {
+  const html = await (await fetch(`${BASE}/configure`)).text();
+  assert.equal((html.match(/class="card has-photo"/g) || []).length, 6);
+  for (const host of ['images.legaseriea.it', 'legab.it', 'pinimg.com', 'ftcdn.net', 'gedeon.com', 'vectorstock.com']) {
+    assert.ok(html.includes(host), host);
+  }
+  assert.match(html, /name="referrer" content="no-referrer"/);
 });

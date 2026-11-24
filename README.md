@@ -116,4 +116,4 @@ Ogni competizione ha la sua cartella in `src/covers/`: `serie-b`, `champions` (C
 
 ### Grafica della pagina di configurazione
 
-La pagina (`src/configure.html`) ha colori e stemma per ogni competizione (definiti in `src/league-art.js`). Gli stemmi sono disegni originali: per usare i loghi ufficiali metti i file in `src/assets/leagues/` (es. `serie-a.png`), vedi il `README.md` nella cartella.
+La pagina (`src/configure.html`) ha colori, stemma e (per Serie A, Serie B, Champions, Europa League, Ligue 1 e Premier League) un'immagine di sfondo per ogni competizione (definiti in `src/league-art.js`). Gli stemmi sono disegni originali: per usare i loghi ufficiali metti i file in `src/assets/leagues/` (es. `serie-a.png`), vedi il `README.md` nella cartella.
