@@ -14,17 +14,17 @@ const letters = (text, size = 26) =>
   `<text x="32" y="${size > 24 ? 42 : 39}" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="${size}" fill="#fff">${text}</text>`;
 
 export const LEAGUE_ART = {
-  'serie-a': { c1: '#0b5fff', c2: '#00c2ff', note: 'Italia',
+  'serie-a': { bg: 'https://images.legaseriea.it/image/private/t_ratio16_9-size60-f_webp-c_fill/v1763030335/prd/assets/backgrounds/serie-a-bg-hero_gaxlca.png', c1: '#0b5fff', c2: '#00c2ff', note: 'Italia',
     svg: `<path d="M12 8h40v26c0 12-9 19-20 23C21 53 12 46 12 34z" fill="#fff"/><path d="M12 8h13v49C21 53 12 46 12 34z" fill="#009246"/><path d="M39 8h13v26c0 12-9 19-20 23h7z" fill="#ce2b37"/>${letters('A', 28).replace('fill="#fff"', 'fill="#0b3d91"').replace('y="42"', 'y="40"')}` },
-  'serie-b': { c1: '#00a896', c2: '#3ddc97', note: 'Italia',
+  'serie-b': { bg: 'https://www.legab.it/_assets/1828dc9d1a12cc6a24cac3eb07a33e6e/Images/bg-seriebkt.jpg?1783333767', c1: '#00a896', c2: '#3ddc97', note: 'Italia',
     svg: `<path d="M12 8h40v26c0 12-9 19-20 23C21 53 12 46 12 34z" fill="#fff"/><rect x="12" y="8" width="40" height="9" fill="#00a896"/>${letters('B', 28).replace('fill="#fff"', 'fill="#00695f"').replace('y="42"', 'y="43"')}` },
-  'champions-league': { c1: '#0a1d8f', c2: '#4f7cff', note: 'Europa',
+  'champions-league': { bg: 'https://i.pinimg.com/736x/6e/b6/45/6eb645dff62ea194f90990de45c956b6.jpg', c1: '#0a1d8f', c2: '#4f7cff', note: 'Europa',
     svg: `<circle cx="32" cy="32" r="21" fill="#fff"/><circle cx="32" cy="32" r="14" fill="#0a1d8f"/>${star(32, 32, 9)}${star(32, 9, 4)}${star(32, 55, 4)}${star(9, 32, 4)}${star(55, 32, 4)}` },
-  'europa-league': { c1: '#ff6a00', c2: '#ffb347', note: 'Europa',
+  'europa-league': { bg: 'https://t3.ftcdn.net/jpg/15/07/69/36/360_F_1507693605_CGojOE40qdJigEOnTRbrqaUrmCumYs7Z.jpg', c1: '#ff6a00', c2: '#ffb347', note: 'Europa',
     svg: `<circle cx="32" cy="32" r="22" fill="none" stroke="#fff" stroke-width="5"/><path d="M18 14l28 36M46 14L18 50" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".55"/><circle cx="32" cy="32" r="8" fill="#fff"/>` },
-  'premier-league': { c1: '#37003c', c2: '#00ff85', note: 'Inghilterra',
+  'premier-league': { bg: 'https://cdn.vectorstock.com/i/500p/70/69/purple-zigzag-epl-background-vector-58627069.jpg', c1: '#37003c', c2: '#00ff85', note: 'Inghilterra',
     svg: `<path d="M10 46l5-24 11 12 6-18 6 18 11-12 5 24z" fill="#fff"/><rect x="10" y="48" width="44" height="6" rx="2" fill="#00ff85"/><circle cx="15" cy="20" r="3" fill="#00ff85"/><circle cx="32" cy="14" r="3" fill="#00ff85"/><circle cx="49" cy="20" r="3" fill="#00ff85"/>` },
-  'ligue-1': { c1: '#091c3e', c2: '#dae025', note: 'Francia',
+  'ligue-1': { bg: 'https://www.gedeon.com/admin/wp-content/uploads/2025/09/IMG_OUT_LIGHT.png', c1: '#091c3e', c2: '#dae025', note: 'Francia',
     svg: `<rect x="10" y="10" width="44" height="44" rx="12" fill="#dae025"/>${letters('1', 38).replace('fill="#fff"', 'fill="#091c3e"').replace('y="42"', 'y="46"')}` },
   'bundesliga': { c1: '#c8102e', c2: '#ff6b3d', note: 'Germania',
     svg: `<circle cx="32" cy="32" r="22" fill="#fff"/><path d="M14 40a22 22 0 0 1 36 0z" fill="#c8102e"/><path d="M14 40h36" stroke="#111" stroke-width="3"/><path d="M13 27a22 22 0 0 1 38 0" fill="none" stroke="#111" stroke-width="3"/>` },

@@ -7,7 +7,7 @@ import { LEAGUE_ART } from './league-art.js';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.9.2';
+const VERSION = '0.9.3';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -374,9 +374,10 @@ app.get('/configure', (req, res) => {
   const checked = new Set(enabledKeys(req));
   const cards = LEAGUES.map((l, i) => {
     const art = LEAGUE_ART[l.key];
-    return `<label class="card" style="--c1:${art.c1};--c2:${art.c2};--i:${i}">
+    const photo = art.bg ? `<span class="photo"></span>` : '';
+    return `<label class="card${art.bg ? ' has-photo' : ''}" style="--c1:${art.c1};--c2:${art.c2};--i:${i}${art.bg ? `;--bg:url('${art.bg}')` : ''}">
   <input type="checkbox" value="${l.key}"${checked.has(l.key) ? ' checked' : ''}>
-  <span class="glow"></span>
+  ${photo}<span class="glow"></span>
   <span class="logo">${leagueLogoMarkup(l)}</span>
   <span class="name">${l.label}</span><span class="note">${art.note}</span>
   <span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>

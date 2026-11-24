@@ -264,3 +264,12 @@ test('Serie B: Simulcast diventa Zona Goal con la sua copertina', async () => {
   assert.equal(meta.name, 'Zona Goal');
   assert.equal(meta.poster, m.poster);
 });
+
+test('pagina configure: sfondo foto su sei schede (Bundesliga e La Liga restano a colori)', async () => {
+  const html = await (await fetch(`${BASE}/configure`)).text();
+  assert.equal((html.match(/class="card has-photo"/g) || []).length, 6);
+  for (const host of ['images.legaseriea.it', 'legab.it', 'pinimg.com', 'ftcdn.net', 'gedeon.com', 'vectorstock.com']) {
+    assert.ok(html.includes(host), host);
+  }
+  assert.match(html, /name="referrer" content="no-referrer"/);
+});

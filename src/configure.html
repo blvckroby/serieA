@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#050b1f">
+<meta name="referrer" content="no-referrer">
 <title>Calcio Live – configurazione</title>
 <link rel="icon" href="/logo.png?v={{LOGO_HASH}}">
 <style>
@@ -64,6 +65,12 @@ h1{margin:0;font-size:clamp(30px,7vw,46px);font-weight:900;letter-spacing:-.02em
 .card:hover{transform:translateY(-4px) scale(1.02)}
 .card:active{transform:scale(.97)}
 .card input{position:absolute;opacity:0;pointer-events:none}
+.card .photo{position:absolute;inset:0;z-index:-2;background:var(--bg) center/cover no-repeat;opacity:.45;filter:grayscale(.85) brightness(.7);transform:scale(1.04);transition:opacity .4s,filter .4s,transform .6s}
+.card:hover .photo{transform:scale(1.12)}
+.card:has(input:checked) .photo{opacity:1;filter:none}
+.card.has-photo::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(5,11,31,.15) 0,rgba(5,11,31,.78) 100%)}
+.card.has-photo:has(input:checked) .glow{opacity:.5;mix-blend-mode:soft-light}
+.card.has-photo .name,.card.has-photo .note{text-shadow:0 2px 8px rgba(0,0,0,.8)}
 .card .glow{position:absolute;inset:0;z-index:-1;opacity:0;background:linear-gradient(145deg,var(--c1),var(--c2));transition:opacity .35s}
 .card::after{content:"";position:absolute;top:-60%;left:-40%;width:40%;height:220%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);transform:rotate(20deg) translateX(-200%);z-index:-1}
 .card:has(input:checked){border-color:rgba(255,255,255,.55);box-shadow:0 14px 40px -10px var(--c1),0 0 0 1px rgba(255,255,255,.2) inset}
