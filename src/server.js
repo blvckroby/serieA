@@ -2,11 +2,12 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, mkdirSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs';
+import { LEAGUE_ART } from './league-art.js';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.8.1';
+const VERSION = '0.9.0';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -57,14 +58,14 @@ function upstreamUrl(resource, type, id) {
 // Competizioni supportate. Il titolo EasySports ha la forma "⚽ Paese - Lega : Casa vs Ospite";
 // i riconoscimenti sono volutamente stretti (niente Serie C, Bundesliga austriaca, AFC/CAF Champions League, ecc.).
 const LEAGUES = [
-  { key: 'serie-a', label: 'Serie A', re: /\bItaly\s*-\s*Serie\s*A\s*:/i },
-  { key: 'serie-b', label: 'Serie B', re: /\bItaly\s*-\s*Serie\s*B\s*:/i },
+  { key: 'serie-a', label: 'Serie A', re: /\bItaly\s*-?\s*Serie\s*A\s*:/i },
+  { key: 'serie-b', label: 'Serie B', re: /\bItaly\s*-?\s*Serie\s*B\s*:/i },
   { key: 'champions-league', label: 'Champions League', re: /\bUEFA\s*Champions\s*League\s*:/i },
   { key: 'europa-league', label: 'Europa League', re: /\bUEFA\s*Europa\s*League\s*:/i },
-  { key: 'premier-league', label: 'Premier League', re: /\bEngland\s*-\s*Premier\s*League\s*:/i },
-  { key: 'ligue-1', label: 'Ligue 1', re: /\bFrance\s*-\s*Ligue\s*1\s*:/i },
-  { key: 'bundesliga', label: 'Bundesliga', re: /\bGermany\s*-\s*Bundesliga\s*:/i },
-  { key: 'la-liga', label: 'La Liga', re: /\bSpain\s*-\s*La\s*?Liga\s*:/i }
+  { key: 'premier-league', label: 'Premier League', re: /\bEngland\s*-?\s*Premier\s*League\s*:/i },
+  { key: 'ligue-1', label: 'Ligue 1', re: /\bFrance\s*-?\s*Ligue\s*1\s*:/i },
+  { key: 'bundesliga', label: 'Bundesliga', re: /\bGermany\s*-?\s*Bundesliga\s*:/i },
+  { key: 'la-liga', label: 'La Liga', re: /\bSpain\s*-?\s*La\s*?Liga\s*:/i }
 ];
 const LEAGUE_KEYS = LEAGUES.map(l => l.key);
 const LEAGUE_STRIP_RE = new RegExp(`^.*?(?:${LEAGUES.map(l => l.re.source).join('|')})\\s*`, 'iu');
@@ -351,31 +352,31 @@ app.get('/logo.png', (_req, res) => {
 for (const { dir, urlPath } of Object.values(localCovers)) app.use(urlPath, express.static(dir, { maxAge: '1d' }));
 app.get('/manifest.json', (req, res) => res.json(buildManifest(req)));
 
+const CONFIGURE_TEMPLATE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'configure.html'), 'utf8');
+const LEAGUE_LOGOS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'leagues');
+app.use('/league-logos', express.static(LEAGUE_LOGOS_DIR, { maxAge: '5m' }));
+
+// Logo ufficiale facoltativo (src/assets/leagues/<chiave>.png|svg|webp), altrimenti lo stemma disegnato.
+function leagueLogoMarkup(league) {
+  const file = ['png', 'svg', 'webp'].map(ext => `${league.key}.${ext}`).find(f => existsSync(path.join(LEAGUE_LOGOS_DIR, f)));
+  return file
+    ? `<img class="emblem-img" src="/league-logos/${file}" alt="">`
+    : `<svg class="emblem" viewBox="0 0 64 64" aria-hidden="true">${LEAGUE_ART[league.key].svg}</svg>`;
+}
+
 app.get('/configure', (req, res) => {
   const checked = new Set(enabledKeys(req));
-  const items = LEAGUES.map(l => `<label><input type="checkbox" value="${l.key}"${checked.has(l.key) ? ' checked' : ''}> ${l.label}</label>`).join('\n');
-  res.type('html').send(`<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Calcio Live – configurazione</title><style>
-:root{color-scheme:light dark}body{font:16px system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px 16px}
-img{width:72px;height:72px;border-radius:16px}h1{font-size:22px;margin:8px 0}label{display:flex;gap:10px;align-items:center;padding:12px;border:1px solid #8886;border-radius:10px;margin:8px 0}
-button,a.btn{display:block;width:100%;box-sizing:border-box;text-align:center;padding:14px;margin:12px 0;border-radius:10px;border:0;background:#0b3d91;color:#fff;font-size:16px;text-decoration:none;cursor:pointer}
-button.alt{background:#555;color:#fff}code{word-break:break-all;font-size:13px}
-</style></head><body>
-<img src="/logo.png?v=${LOGO_HASH}" alt=""><h1>Calcio Live</h1>
-<p>Scegli le competizioni che vuoi vedere nel catalogo, poi installa l'addon.</p>
-${items}
-<a class="btn" id="install" href="#">Installa in Stremio</a>
-<button class="alt" id="copy">Copia link manifest</button>
-<p><code id="url"></code></p>
-<script>
-const boxes=[...document.querySelectorAll('input[type=checkbox]')];
-function manifestPath(){const on=boxes.filter(b=>b.checked).map(b=>b.value);
- return (on.length===0||on.length===boxes.length)?'/manifest.json':'/cfg/'+on.join(',')+'/manifest.json'}
-function refresh(){const p=manifestPath();document.getElementById('url').textContent=location.origin+p;
- document.getElementById('install').href='stremio://'+location.host+p}
-boxes.forEach(b=>b.addEventListener('change',refresh));refresh();
-document.getElementById('copy').onclick=()=>{navigator.clipboard?.writeText(location.origin+manifestPath());document.getElementById('copy').textContent='Copiato!'};
-</script></body></html>`);
+  const cards = LEAGUES.map((l, i) => {
+    const art = LEAGUE_ART[l.key];
+    return `<label class="card" style="--c1:${art.c1};--c2:${art.c2};--i:${i}">
+  <input type="checkbox" value="${l.key}"${checked.has(l.key) ? ' checked' : ''}>
+  <span class="glow"></span>
+  <span class="logo">${leagueLogoMarkup(l)}</span>
+  <span class="name">${l.label}</span><span class="note">${art.note}</span>
+  <span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+</label>`;
+  }).join('\n');
+  res.type('html').send(CONFIGURE_TEMPLATE.replaceAll('{{CARDS}}', cards).replaceAll('{{LOGO_HASH}}', LOGO_HASH).replaceAll('{{VERSION}}', VERSION));
 });
 
 // Catalogo unico: il "genere" seleziona la competizione. I vecchi ID (serie-a, ...) restano validi.

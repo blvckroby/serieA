@@ -163,7 +163,7 @@ test('Europa League: copertina di default servita e usata come sfondo', async ()
 test('catalogo senza genere: tutte le competizioni supportate, niente Serie C / AFC / Bundesliga austriaca / La Liga 2', async () => {
   const metas = (await json('/catalog/Live%20Sports/calcio.json')).metas;
   const ids = metas.map(m => m.id.replace('seriea:soccer:', '')).sort((a, b) => a - b);
-  assert.deepEqual(ids, ['1', '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '15', '16', '17', '21', '22', '23', '24', '25', '26'].sort((a, b) => a - b));
+  assert.deepEqual(ids, ['1', '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '15', '16', '17', '21', '22', '23', '24', '25', '26', '27', '28'].sort((a, b) => a - b));
 });
 
 test('altre competizioni: titolo pulito dal prefisso e dalle bandiere', async () => {
@@ -177,7 +177,7 @@ test('altre competizioni: titolo pulito dal prefisso e dalle bandiere', async ()
 test('ogni genere contiene solo la sua competizione', async () => {
   assert.deepEqual((await catalog('bundesliga')).map(m => m.id), ['seriea:soccer:17']);
   assert.deepEqual((await catalog('la-liga')).map(m => m.id), ['seriea:soccer:7', 'seriea:soccer:21']);
-  assert.deepEqual((await catalog('serie-b')).map(m => m.id), ['seriea:soccer:10']);
+  assert.deepEqual((await catalog('serie-b')).map(m => m.id), ['seriea:soccer:10', 'seriea:soccer:27']);
 });
 
 test('configurazione: /cfg/ limita le competizioni nel manifest, nel catalogo, in meta e stream', async () => {
@@ -234,4 +234,21 @@ test('Champions League: Simulcast diventa Diretta Goal con la copertina dedicata
   const { meta } = await json('/meta/Live%20Sports/seriea%3Asoccer%3A26.json');
   assert.equal(meta.name, 'Diretta Goal');
   assert.equal(meta.poster, m.poster);
+});
+
+test('Serie B: riconosciuta anche senza trattino ("Italy Serie B :") e titolo pulito', async () => {
+  const m = byId(await catalog('serie-b'), 27);
+  assert.ok(m, 'evento Serie B senza trattino presente');
+  assert.equal(m.name, 'Spezia vs Cesena');
+  assert.equal(byId(await catalog('premier-league'), 28).name, 'Liverpool vs Everton');
+  assert.equal((await json('/meta/Live%20Sports/seriea%3Asoccer%3A27.json')).meta.name, 'Spezia vs Cesena');
+  assert.equal((await json('/stream/Live%20Sports/seriea%3Asoccer%3A27.json')).streams.length, 1);
+});
+
+test('pagina configure: schede a tema, stemmi, link e script', async () => {
+  const html = await (await fetch(`${BASE}/configure`)).text();
+  assert.equal((html.match(/class="card"/g) || []).length, 8);
+  assert.equal((html.match(/<svg class="emblem"/g) || []).length, 8);
+  for (const c of ['--c1:', 'stremio://', 'web.stremio.com', '8 competizioni']) assert.ok(html.includes(c), c);
+  assert.ok(!html.includes('{{'), 'segnaposto non sostituiti');
 });
