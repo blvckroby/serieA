@@ -163,7 +163,7 @@ test('Europa League: copertina di default servita e usata come sfondo', async ()
 test('catalogo senza genere: tutte le competizioni supportate, niente Serie C / AFC / Bundesliga austriaca / La Liga 2', async () => {
   const metas = (await json('/catalog/Live%20Sports/calcio.json')).metas;
   const ids = metas.map(m => m.id.replace('seriea:soccer:', '')).sort((a, b) => a - b);
-  assert.deepEqual(ids, ['1', '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '15', '16', '17', '21', '22', '23', '24', '25'].sort((a, b) => a - b));
+  assert.deepEqual(ids, ['1', '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '15', '16', '17', '21', '22', '23', '24', '25', '26'].sort((a, b) => a - b));
 });
 
 test('altre competizioni: titolo pulito dal prefisso e dalle bandiere', async () => {
@@ -223,4 +223,15 @@ test('Europa League: ogni copertina referenziata esiste e ha un tipo immagine', 
     assert.equal(r.status, 200, m.poster);
     assert.match(r.headers.get('content-type'), /^image\//, m.poster);
   }
+});
+
+test('Champions League: Simulcast diventa Diretta Goal con la copertina dedicata', async () => {
+  const m = byId(await catalog('champions-league'), 26);
+  assert.equal(m.name, 'Diretta Goal');
+  assert.equal(m.poster, 'https://addon.test/covers/champions/diretta-goal.webp');
+  assert.equal(m.background, m.poster);
+  assert.equal((await fetch(`${BASE}/covers/champions/diretta-goal.webp`)).status, 200);
+  const { meta } = await json('/meta/Live%20Sports/seriea%3Asoccer%3A26.json');
+  assert.equal(meta.name, 'Diretta Goal');
+  assert.equal(meta.poster, m.poster);
 });
