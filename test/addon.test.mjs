@@ -247,7 +247,7 @@ test('Serie B: riconosciuta anche senza trattino ("Italy Serie B :") e titolo pu
 
 test('pagina configure: schede a tema, stemmi, link e script', async () => {
   const html = await (await fetch(`${BASE}/configure`)).text();
-  assert.equal((html.match(/class="card"/g) || []).length, 8);
+  assert.equal((html.match(/class="card[ "]/g) || []).length, 8);
   // stemma disegnato oppure logo ufficiale caricato in src/assets/leagues
   assert.equal((html.match(/<svg class="emblem"|<img class="emblem-img"/g) || []).length, 8);
   for (const c of ['--c1:', 'stremio://', 'web.stremio.com', '8 competizioni']) assert.ok(html.includes(c), c);
