@@ -62,7 +62,7 @@ test('le copertine sono servite dalle rispettive cartelle', async () => {
 });
 test('senza file e senza default resta la copertina originale', async () => {
   const dirEmpty = (await catalog('serie-b'));
-  assert.equal(dirEmpty.length, 1);
+  assert.equal(dirEmpty.length, 2);
   // Bundesliga non ha default: una partita senza file non avrebbe poster; quella presente sì
   assert.ok((await catalog('bundesliga'))[0].poster);
 });

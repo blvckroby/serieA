@@ -113,3 +113,7 @@ Apri `https://TUO-DOMINIO/configure` (in Stremio è il pulsante *Configura* dell
 ### Cartelle copertine per competizione
 
 Ogni competizione ha la sua cartella in `src/covers/`: `serie-b`, `champions` (Champions League), `europa` (Europa League), `premier-league`, `ligue-1`, `bundesliga`, `la-liga` (la Serie A usa il repository GitHub). Basta caricare le immagini nella cartella giusta (`squadra-casa_vs_squadra-ospite.png`, anche `.webp`/`.jpg`) e rifare il deploy; `default.png` facoltativa per le partite senza copertina dedicata. Il file `README.md` in ogni cartella ricorda il formato.
+
+### Grafica della pagina di configurazione
+
+La pagina (`src/configure.html`) ha colori e stemma per ogni competizione (definiti in `src/league-art.js`). Gli stemmi sono disegni originali: per usare i loghi ufficiali metti i file in `src/assets/leagues/` (es. `serie-a.png`), vedi il `README.md` nella cartella.
