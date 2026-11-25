@@ -67,7 +67,7 @@ test('Champions: esclusa la femminile e le altre competizioni', async () => {
 test('Champions: copertina locale abbinata anche con nomi diversi', async () => {
   const metas = await catalog('champions-league');
   assert.equal(byId(metas, 3).poster, 'https://addon.test/covers/champions/aek-athens_vs_real-madrid.webp');
-  assert.equal(byId(metas, 4).poster, 'https://addon.test/covers/champions/bodo-glimt_vs_borussia-dortmund.webp');
+  assert.equal(byId(metas, 4).poster, 'https://addon.test/covers/champions/bod-glimt_vs_borussia-dortmund.webp');
   assert.equal(byId(metas, 5).poster, 'https://addon.test/covers/champions/villarreal_vs_paris-saint-germain.webp');
 });
 
@@ -139,7 +139,7 @@ const TABLE = [
   ['Serie A', 'serie-a', 1, 'Inter vs Juventus', /raw\.githubusercontent\.com\/.*inter_vs_juventus\.png$/],
   ['Serie A Simulcast', 'serie-a', 2, 'Diretta Goal', /indazn\.com/],
   ['Champions', 'champions-league', 3, 'AEK Athens vs Real Madrid', /\/covers\/champions\/aek-athens_vs_real-madrid\.webp$/],
-  ['Champions (Bodø)', 'champions-league', 4, 'Bodø/Glimt vs Borussia Dortmund', /bodo-glimt_vs_borussia-dortmund\.webp$/],
+  ['Champions (Bodø)', 'champions-league', 4, 'Bodø/Glimt vs Borussia Dortmund', /bod-glimt_vs_borussia-dortmund\.webp$/],
   ['Europa League', 'europa-league', 8, 'Roma vs Porto', /\/covers\/europa\/default\.webp$/],
   ['Europa League Simulcast', 'europa-league', 11, 'Diretta Goal', /today\.it/]
 ];
@@ -228,9 +228,9 @@ test('Europa League: ogni copertina referenziata esiste e ha un tipo immagine', 
 test('Champions League: Simulcast diventa Diretta Goal con la copertina dedicata', async () => {
   const m = byId(await catalog('champions-league'), 26);
   assert.equal(m.name, 'Diretta Goal');
-  assert.equal(m.poster, 'https://addon.test/covers/champions/diretta-goal.webp');
+  assert.equal(m.poster, 'https://addon.test/simulcast/champions-diretta-goal.webp');
   assert.equal(m.background, m.poster);
-  assert.equal((await fetch(`${BASE}/covers/champions/diretta-goal.webp`)).status, 200);
+  assert.equal((await fetch(`${BASE}/simulcast/champions-diretta-goal.webp`)).status, 200);
   const { meta } = await json('/meta/Live%20Sports/seriea%3Asoccer%3A26.json');
   assert.equal(meta.name, 'Diretta Goal');
   assert.equal(meta.poster, m.poster);
@@ -257,9 +257,9 @@ test('pagina configure: schede a tema, stemmi, link e script', async () => {
 test('Serie B: Simulcast diventa Zona Goal con la sua copertina', async () => {
   const m = byId(await catalog('serie-b'), 29);
   assert.equal(m.name, 'Zona Goal');
-  assert.equal(m.poster, 'https://addon.test/covers/serie-b/zona-goal.webp');
+  assert.equal(m.poster, 'https://addon.test/simulcast/serie-b-zona-goal.webp');
   assert.equal(m.background, m.poster);
-  assert.equal((await fetch(`${BASE}/covers/serie-b/zona-goal.webp`)).status, 200);
+  assert.equal((await fetch(`${BASE}/simulcast/serie-b-zona-goal.webp`)).status, 200);
   const { meta } = await json('/meta/Live%20Sports/seriea%3Asoccer%3A29.json');
   assert.equal(meta.name, 'Zona Goal');
   assert.equal(meta.poster, m.poster);
@@ -272,4 +272,11 @@ test('pagina configure: sfondo foto su sei schede (Bundesliga e La Liga restano 
     assert.ok(html.includes(host), host);
   }
   assert.match(html, /name="referrer" content="no-referrer"/);
+});
+
+test('pagina configure: Ligue 1 con sfondo logo #085fff, Premier League senza il verde #00ff85', async () => {
+  const html = await (await fetch(`${BASE}/configure`)).text();
+  assert.match(html, /--logo-bg:#085fff/);
+  assert.ok(!html.toLowerCase().includes('#00ff85'));
+  assert.ok(html.includes('#00bdff'));
 });

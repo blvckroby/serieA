@@ -7,7 +7,7 @@ import { LEAGUE_ART } from './league-art.js';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.9.3';
+const VERSION = '0.9.4';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -153,7 +153,7 @@ const CHAMPIONS_ALIASES = {
   'sporting': 'sporting-cp', 'sporting lisbon': 'sporting-cp', 'sporting lisboa': 'sporting-cp',
   'slavia praha': 'slavia-prague', 'sk slavia praha': 'slavia-prague',
   'shakhtar': 'shakhtar-donetsk', 'shakhtar donetsk': 'shakhtar-donetsk',
-  'bodo glimt': 'bodo-glimt', 'fk bodo glimt': 'bodo-glimt',
+  'bodo glimt': 'bodo-glimt', 'fk bodo glimt': 'bodo-glimt', 'bod glimt': 'bodo-glimt', 'fk bod glimt': 'bodo-glimt',
   'man city': 'manchester-city', 'man united': 'manchester-united', 'man utd': 'manchester-united',
   'atletico': 'atletico-madrid', 'atletico de madrid': 'atletico-madrid', 'club atletico de madrid': 'atletico-madrid',
   'leipzig': 'rb-leipzig', 'red bull leipzig': 'rb-leipzig', 'rasenballsport leipzig': 'rb-leipzig',
@@ -173,6 +173,7 @@ const CHAMPIONS_ALIASES = {
   'olympique lyonnais': 'lyon', 'stade rennais': 'rennes', 'stade rennais fc': 'rennes', 'nec': 'nec-nijmegen',
   'rc lens': 'lens', 'losc lille': 'lille', 'lask linz': 'lask', 'fc porto': 'porto', 'como 1907': 'como'
 };
+const SLUG_VARIANTS = { 'bodo-glimt': ['bod-glimt'], 'bod-glimt': ['bodo-glimt'] };
 const LATIN_FIX = { 'ø': 'o', 'Ø': 'o', 'ð': 'd', 'đ': 'd', 'ł': 'l', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe' };
 
 // Copertine locali di una competizione: cartella con file "squadra-casa_vs_squadra-ospite.webp".
@@ -199,7 +200,10 @@ function makeLocalCovers(dir, urlPath) {
       .split(' ').filter(w => !['fc', 'cf', 'sc', 'fk', 'sk', 'afc', 'ac'].includes(w)).join(' ');
     const plain = normalized.replace(/\s+/g, '-');
     const alias = CHAMPIONS_ALIASES[normalized];
-    if (alias && slugs.has(alias)) return alias;
+    // Alcuni file usano grafie diverse (es. "bod-glimt" al posto di "bodo-glimt"): si accettano entrambe.
+    const spelled = candidate => [candidate, ...(SLUG_VARIANTS[candidate] || [])].find(c => slugs.has(c));
+    if (alias && spelled(alias)) return spelled(alias);
+    if (spelled(plain)) return spelled(plain);
     if (slugs.has(plain)) return plain;
     const words = new Set(normalized.split(' '));
     let best = null;
@@ -293,8 +297,8 @@ function cleanMeta(meta, base) {
   const simulcastInfo = (isSimulcast(meta.name) || isSimulcast(meta.title)) ? {
     'serie-a': { name: DIRETTA_GOAL_NAME, cover: DIRETTA_GOAL_COVER },
     'europa-league': { name: DIRETTA_GOAL_NAME, cover: DIRETTA_GOAL_EUROPA_COVER },
-    'champions-league': { name: DIRETTA_GOAL_NAME, cover: `${base}/covers/champions/diretta-goal.webp` },
-    'serie-b': { name: 'Zona Goal', cover: `${base}/covers/serie-b/zona-goal.webp` }
+    'champions-league': { name: DIRETTA_GOAL_NAME, cover: `${base}/simulcast/champions-diretta-goal.webp` },
+    'serie-b': { name: 'Zona Goal', cover: `${base}/simulcast/serie-b-zona-goal.webp` }
   }[league] : undefined;
   const simulcast = Boolean(simulcastInfo);
   const cleanName = simulcast ? simulcastInfo.name : cleanMatchTitle(meta.name);
@@ -355,6 +359,8 @@ app.get('/logo.png', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.sendFile(LOGO_PATH);
 });
+// Copertine dei canali Simulcast (fuori da src/covers, così non vengono sovrascritte aggiornando le cartelle delle partite).
+app.use('/simulcast', express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'simulcast'), { maxAge: '5m' }));
 for (const { dir, urlPath } of Object.values(localCovers)) app.use(urlPath, express.static(dir, { maxAge: '1d' }));
 app.get('/manifest.json', (req, res) => res.json(buildManifest(req)));
 
@@ -375,7 +381,7 @@ app.get('/configure', (req, res) => {
   const cards = LEAGUES.map((l, i) => {
     const art = LEAGUE_ART[l.key];
     const photo = art.bg ? `<span class="photo"></span>` : '';
-    return `<label class="card${art.bg ? ' has-photo' : ''}" style="--c1:${art.c1};--c2:${art.c2};--i:${i}${art.bg ? `;--bg:url('${art.bg}')` : ''}">
+    return `<label class="card${art.bg ? ' has-photo' : ''}" style="--c1:${art.c1};--c2:${art.c2};--i:${i}${art.logoBg ? `;--logo-bg:${art.logoBg};--logo-bg-image:none` : ''}${art.bg ? `;--bg:url('${art.bg}')` : ''}">
   <input type="checkbox" value="${l.key}"${checked.has(l.key) ? ' checked' : ''}>
   ${photo}<span class="glow"></span>
   <span class="logo">${leagueLogoMarkup(l)}</span>
