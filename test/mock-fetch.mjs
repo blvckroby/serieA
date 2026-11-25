@@ -33,8 +33,15 @@ const events = process.env.MOCK_EVENTS_FILE ? JSON.parse(readFileSync(process.en
   { id: 'soccer:25', name: '⚽ UEFA Europa League : Olympique Lyonnais vs Union St. Gilloise' }
 ];
 const real = globalThis.fetch;
+const customEvents = [{ id: 'soccer:900', name: '⚽ Italy - Serie A : Custom vs Utente' }];
 globalThis.fetch = async (url, opts) => {
   url = String(url);
+  // Manifest EasySports personale (test): contiene questo segmento nel percorso
+  if (url.includes('/CUSTOMTOKEN12345678/')) {
+    if (url.includes('/catalog/')) return Response.json({ metas: customEvents });
+    if (url.includes('/meta/')) return Response.json({ meta: customEvents[0] });
+    if (url.includes('/stream/')) return Response.json({ streams: [{ title: 'custom' }] });
+  }
   if (url.includes('/catalog/')) return Response.json({ metas: events });
   if (url.includes('/meta/')) {
     const id = decodeURIComponent(url.split('/').pop().replace(/\.json$/, ''));
