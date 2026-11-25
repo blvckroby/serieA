@@ -117,3 +117,9 @@ Ogni competizione ha la sua cartella in `src/covers/`: `serie-b`, `champions` (C
 ### Grafica della pagina di configurazione
 
 La pagina (`src/configure.html`) ha colori, stemma e (per Serie A, Serie B, Champions, Europa League, Ligue 1 e Premier League) un'immagine di sfondo per ogni competizione (definiti in `src/league-art.js`). Gli stemmi sono disegni originali: per usare i loghi ufficiali metti i file in `src/assets/leagues/` (es. `serie-a.png`), vedi il `README.md` nella cartella.
+
+## Manifest EasySports personale
+
+Nella pagina `/configure` c'è il campo **Il tuo manifest EasySports** (facoltativo). Se lo lasci vuoto l'addon usa il manifest predefinito del proprietario; se incolli il tuo (`https://easysports.realbestia.com/.../manifest.json`) viene incluso nel link di installazione, nella forma `/cfg/<competizioni>/u/<manifest in base64url>/manifest.json`, e catalogo, schede e stream usano il tuo. Sono accettati solo manifest `https` dello stesso servizio EasySports (nessun altro host, porta o parametro): gli altri vengono rifiutati con errore 400. Ogni link di installazione contiene il tuo manifest: non condividerlo se non vuoi che altri usino il tuo accesso.
+
+Gli sfondi di Bundesliga e La Liga sono in `src/assets/leagues/bg/`.

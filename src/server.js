@@ -7,7 +7,7 @@ import { LEAGUE_ART } from './league-art.js';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.9.4';
+const VERSION = '0.10.0';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -25,8 +25,8 @@ const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 12_000);
 const COVERS_API_URL = 'https://api.github.com/repos/qwertyuiop8899/logo/contents/SerieA';
 const COVERS_RAW_BASE = 'https://raw.githubusercontent.com/qwertyuiop8899/logo/main/SerieA';
 
-let upstreamPrefix;
-let catalogCache = { expiresAt: 0, metas: [] };
+let upstreamPrefix; // manifest EasySports predefinito (quello del proprietario)
+const catalogCaches = new Map(); // prefisso EasySports -> { expiresAt, metas }
 let coverFiles = new Set();
 let coverFilesLoadedAt = 0;
 
@@ -49,10 +49,10 @@ async function fetchJson(url) {
   }
 }
 
-function upstreamUrl(resource, type, id) {
+function upstreamUrl(resource, type, id, prefix = upstreamPrefix) {
   const safeType = encodeURIComponent(type);
   const safeId = encodeURIComponent(id);
-  return `${upstreamPrefix}/${resource}/${safeType}/${safeId}.json`;
+  return `${prefix}/${resource}/${safeType}/${safeId}.json`;
 }
 
 // Competizioni supportate. Il titolo EasySports ha la forma "⚽ Paese - Lega : Casa vs Ospite";
@@ -77,13 +77,35 @@ function leagueOf(meta) {
 }
 const isSupportedEvent = meta => Boolean(leagueOf(meta));
 
-// ---- Configurazione: elenco competizioni abilitate nell'URL di installazione (/cfg/serie-a,la-liga/manifest.json) ----
-app.use((req, _res, next) => {
-  const m = req.url.match(/^\/cfg\/([a-z0-9,-]*)(\/.*)?$/i);
+// ---- Configurazione nell'URL di installazione ----
+//   /cfg/serie-a,la-liga/manifest.json            competizioni scelte
+//   /cfg/all/u/<manifest EasySports base64url>/…   manifest EasySports personale (altrimenti si usa quello predefinito)
+const UPSTREAM_ALLOWED_HOST = new URL(UPSTREAM_MANIFEST_URL).hostname;
+const b64url = text => Buffer.from(text, 'utf8').toString('base64url');
+
+// Accetta solo manifest https dello stesso servizio EasySports (evita che l'addon contatti host arbitrari).
+function parseUpstreamManifest(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.hostname !== UPSTREAM_ALLOWED_HOST || url.port || url.username || url.password || url.search || url.hash) return null;
+    if (!url.pathname.endsWith('/manifest.json') || url.pathname.length < 20) return null;
+    return `${url.origin}${url.pathname.slice(0, -'/manifest.json'.length)}`;
+  } catch { return null; }
+}
+
+app.use((req, res, next) => {
+  const m = req.url.match(/^\/cfg\/([a-z0-9,-]*)(?:\/u\/([A-Za-z0-9_-]+))?(\/.*)?$/i);
   if (m) {
     const keys = m[1].split(',').filter(k => LEAGUE_KEYS.includes(k));
     req.enabled = keys.length ? keys : undefined;
-    req.url = m[2] || '/';
+    if (m[2]) {
+      const decoded = Buffer.from(m[2], 'base64url').toString('utf8');
+      const prefix = parseUpstreamManifest(decoded);
+      if (!prefix) return res.status(400).json({ error: 'Manifest EasySports non valido.' });
+      req.upstreamPrefix = prefix;
+      req.upstreamManifest = decoded;
+    }
+    req.url = m[3] || '/';
   }
   next();
 });
@@ -325,12 +347,15 @@ function cleanMeta(meta, base) {
 }
 
 // Catalogo EasySports grezzo (in cache): i due cataloghi vengono filtrati e puliti a ogni richiesta.
-async function getUpstreamEvents(force = false) {
-  if (!force && catalogCache.expiresAt > Date.now()) return catalogCache.metas;
-  const data = await fetchJson(upstreamUrl('catalog', 'Live Sports', 'soccer'));
+async function getUpstreamEvents(req, force = false) {
+  const prefix = req?.upstreamPrefix || upstreamPrefix;
+  const cached = catalogCaches.get(prefix);
+  if (!force && cached && cached.expiresAt > Date.now()) return cached.metas;
+  const data = await fetchJson(upstreamUrl('catalog', 'Live Sports', 'soccer', prefix));
   await loadCoverFiles();
   const metas = Array.isArray(data?.metas) ? data.metas.filter(isSupportedEvent) : [];
-  catalogCache = { metas, expiresAt: Date.now() + CACHE_TTL_MS };
+  if (catalogCaches.size >= 50) catalogCaches.delete(catalogCaches.keys().next().value);
+  catalogCaches.set(prefix, { metas, expiresAt: Date.now() + CACHE_TTL_MS });
   return metas;
 }
 
@@ -389,7 +414,9 @@ app.get('/configure', (req, res) => {
   <span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
 </label>`;
   }).join('\n');
-  res.type('html').send(CONFIGURE_TEMPLATE.replaceAll('{{CARDS}}', cards).replaceAll('{{LOGO_HASH}}', LOGO_HASH).replaceAll('{{VERSION}}', VERSION));
+  res.type('html').send(CONFIGURE_TEMPLATE.replaceAll('{{CARDS}}', cards).replaceAll('{{LOGO_HASH}}', LOGO_HASH).replaceAll('{{VERSION}}', VERSION)
+    .replaceAll('{{ALLOWED_HOST}}', UPSTREAM_ALLOWED_HOST)
+    .replaceAll('{{UPSTREAM_VALUE}}', (req.upstreamManifest || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))));
 });
 
 // Catalogo unico: il "genere" seleziona la competizione. I vecchi ID (serie-a, ...) restano validi.
@@ -404,7 +431,7 @@ async function handleCatalog(req, res) {
     if (legacy) keys = keys.filter(k => k === catalogId);
     if (genre) keys = keys.filter(k => LEAGUES.find(l => l.key === k).label.toLowerCase() === genre.toLowerCase());
     const base = publicBase(req);
-    const metas = (await getUpstreamEvents(req.query.refresh === '1'))
+    const metas = (await getUpstreamEvents(req, req.query.refresh === '1'))
       .filter(meta => keys.includes(leagueOf(meta))).map(meta => cleanMeta(meta, base));
     res.set({ 'Cache-Control': 'no-store', Vary: 'User-Agent' });
     return res.json({ metas });
@@ -421,7 +448,7 @@ app.get('/meta/:type/:id.json', async (req, res) => {
   const id = toUpstreamId(req.params.id);
   if (type !== 'Live Sports' || !id.startsWith('soccer:')) return res.json({ meta: null });
   try {
-    const data = await fetchJson(upstreamUrl('meta', type, id));
+    const data = await fetchJson(upstreamUrl('meta', type, id, req.upstreamPrefix));
     const meta = data?.meta;
     if (!enabledKeys(req).includes(leagueOf(meta))) return res.json({ meta: null });
     await loadCoverFiles();
@@ -438,10 +465,10 @@ app.get('/stream/:type/:id.json', async (req, res) => {
   if (type !== 'Live Sports' || !id.startsWith('soccer:')) return res.json({ streams: [] });
   try {
     // Validate the event against the filtered league before forwarding its original ID.
-    const metas = await getUpstreamEvents();
+    const metas = await getUpstreamEvents(req);
     const event = metas.find(item => item.id === id);
     if (!event || !enabledKeys(req).includes(leagueOf(event))) return res.json({ streams: [] });
-    const data = await fetchJson(upstreamUrl('stream', type, id));
+    const data = await fetchJson(upstreamUrl('stream', type, id, req.upstreamPrefix));
     return res.json(data);
   } catch (error) {
     console.error('[stream]', error.message);

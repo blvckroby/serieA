@@ -20,15 +20,15 @@ export const LEAGUE_ART = {
     svg: `<path d="M12 8h40v26c0 12-9 19-20 23C21 53 12 46 12 34z" fill="#fff"/><rect x="12" y="8" width="40" height="9" fill="#00a896"/>${letters('B', 28).replace('fill="#fff"', 'fill="#00695f"').replace('y="42"', 'y="43"')}` },
   'champions-league': { bg: 'https://i.pinimg.com/736x/6e/b6/45/6eb645dff62ea194f90990de45c956b6.jpg', c1: '#0a1d8f', c2: '#4f7cff', note: 'Europa',
     svg: `<circle cx="32" cy="32" r="21" fill="#fff"/><circle cx="32" cy="32" r="14" fill="#0a1d8f"/>${star(32, 32, 9)}${star(32, 9, 4)}${star(32, 55, 4)}${star(9, 32, 4)}${star(55, 32, 4)}` },
-  'europa-league': { bg: 'https://t3.ftcdn.net/jpg/15/07/69/36/360_F_1507693605_CGojOE40qdJigEOnTRbrqaUrmCumYs7Z.jpg', c1: '#ff6a00', c2: '#ffb347', note: 'Europa',
+  'europa-league': { bg: 'https://t3.ftcdn.net/jpg/15/07/69/36/360_F_1507693605_CGojOE40qdJigEOnTRbrqaUrmCumYs7Z.jpg', c1: '#ff6a00', c2: '#322d24', note: 'Europa',
     svg: `<circle cx="32" cy="32" r="22" fill="none" stroke="#fff" stroke-width="5"/><path d="M18 14l28 36M46 14L18 50" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".55"/><circle cx="32" cy="32" r="8" fill="#fff"/>` },
   'premier-league': { bg: 'https://cdn.vectorstock.com/i/500p/70/69/purple-zigzag-epl-background-vector-58627069.jpg', c1: '#37003c', c2: '#00bdff', note: 'Inghilterra',
     svg: `<path d="M10 46l5-24 11 12 6-18 6 18 11-12 5 24z" fill="#fff"/><rect x="10" y="48" width="44" height="6" rx="2" fill="#00bdff"/><circle cx="15" cy="20" r="3" fill="#00bdff"/><circle cx="32" cy="14" r="3" fill="#00bdff"/><circle cx="49" cy="20" r="3" fill="#00bdff"/>` },
   'ligue-1': { logoBg: '#085fff', bg: 'https://www.gedeon.com/admin/wp-content/uploads/2025/09/IMG_OUT_LIGHT.png', c1: '#091c3e', c2: '#dae025', note: 'Francia',
     svg: `<rect x="10" y="10" width="44" height="44" rx="12" fill="#dae025"/>${letters('1', 38).replace('fill="#fff"', 'fill="#091c3e"').replace('y="42"', 'y="46"')}` },
-  'bundesliga': { c1: '#c8102e', c2: '#ff6b3d', note: 'Germania',
+  'bundesliga': { bg: '/league-logos/bg/bundesliga.png', c1: '#c8102e', c2: '#ff6b3d', note: 'Germania',
     svg: `<circle cx="32" cy="32" r="22" fill="#fff"/><path d="M14 40a22 22 0 0 1 36 0z" fill="#c8102e"/><path d="M14 40h36" stroke="#111" stroke-width="3"/><path d="M13 27a22 22 0 0 1 38 0" fill="none" stroke="#111" stroke-width="3"/>` },
-  'la-liga': { c1: '#d6003a', c2: '#ff8aa1', note: 'Spagna',
+  'la-liga': { bg: '/league-logos/bg/la-liga.png', c1: '#d6003a', c2: '#ff8aa1', note: 'Spagna',
     svg: `<circle cx="32" cy="32" r="22" fill="#fff"/><path d="M32 10a22 22 0 0 1 0 44 11 11 0 0 1 0-22 11 11 0 0 0 0-22z" fill="#d6003a"/><circle cx="32" cy="21" r="3" fill="#fff"/><circle cx="32" cy="43" r="3" fill="#d6003a"/>` }
 };
 export const ballSvg = ball;

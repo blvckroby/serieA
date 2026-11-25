@@ -245,6 +245,50 @@ test('Serie B: riconosciuta anche senza trattino ("Italy Serie B :") e titolo pu
   assert.equal((await json('/stream/Live%20Sports/seriea%3Asoccer%3A27.json')).streams.length, 1);
 });
 
+const CUSTOM = 'https://easysports.realbestia.com/CUSTOMTOKEN12345678/manifest.json';
+const b64 = text => Buffer.from(text).toString('base64url');
+
+test('manifest EasySports personale: catalogo, meta e stream usano il suo upstream', async () => {
+  const cfg = `/cfg/all/u/${b64(CUSTOM)}`;
+  const metas = (await json(`${cfg}/catalog/Live%20Sports/calcio.json`)).metas;
+  assert.deepEqual(metas.map(m => m.id), ['seriea:soccer:900']);
+  assert.equal(metas[0].name, 'Custom vs Utente');
+  assert.equal((await json(`${cfg}/stream/Live%20Sports/seriea%3Asoccer%3A900.json`)).streams[0].title, 'custom');
+  assert.equal((await json(`${cfg}/meta/Live%20Sports/seriea%3Asoccer%3A900.json`)).meta.name, 'Custom vs Utente');
+  // senza configurazione si usa il manifest predefinito (altri eventi, nessuno dell'utente)
+  const def = (await json('/catalog/Live%20Sports/calcio.json')).metas.map(m => m.id);
+  assert.ok(!def.includes('seriea:soccer:900'));
+  // evento del manifest predefinito non visibile con quello personale
+  assert.deepEqual((await json(`${cfg}/stream/Live%20Sports/seriea%3Asoccer%3A1.json`)).streams, []);
+});
+
+test('manifest EasySports personale combinato con la scelta delle competizioni', async () => {
+  const m = await json(`/cfg/la-liga/u/${b64(CUSTOM)}/manifest.json`);
+  assert.deepEqual(m.catalogs[0].extra[0].options, ['La Liga']);
+  assert.deepEqual((await json(`/cfg/la-liga/u/${b64(CUSTOM)}/catalog/Live%20Sports/calcio.json`)).metas, []);
+});
+
+test('manifest EasySports personale: host diversi o link non validi rifiutati', async () => {
+  for (const bad of ['https://evil.example.com/abc/manifest.json', 'http://easysports.realbestia.com/CUSTOMTOKEN12345678/manifest.json',
+    'https://easysports.realbestia.com:8443/CUSTOMTOKEN12345678/manifest.json', 'https://easysports.realbestia.com/CUSTOMTOKEN12345678/other.json', 'non-un-url']) {
+    const r = await fetch(`${BASE}/cfg/all/u/${b64(bad)}/manifest.json`);
+    assert.equal(r.status, 400, bad);
+  }
+});
+
+test('configure: campo manifest personale, valore precompilato e sfondi Bundesliga/La Liga', async () => {
+  const html = await (await fetch(`${BASE}/cfg/all/u/${b64(CUSTOM)}/configure`)).text();
+  assert.ok(html.includes('id="up"'));
+  assert.ok(html.includes(`value="${CUSTOM}"`));
+  assert.ok(html.includes('easysports.realbestia.com'));
+  assert.ok(!html.includes('{{'));
+  const plain = await (await fetch(`${BASE}/configure`)).text();
+  assert.match(plain, /value=""/);
+  assert.ok(plain.includes('/league-logos/bg/bundesliga.png') && plain.includes('/league-logos/bg/la-liga.png'));
+  assert.equal((await fetch(`${BASE}/league-logos/bg/la-liga.png`)).status, 200);
+  assert.ok(!plain.includes('#ffb347') && plain.includes('#322d24'));
+});
+
 test('pagina configure: schede a tema, stemmi, link e script', async () => {
   const html = await (await fetch(`${BASE}/configure`)).text();
   assert.equal((html.match(/class="card[ "]/g) || []).length, 8);
@@ -265,9 +309,9 @@ test('Serie B: Simulcast diventa Zona Goal con la sua copertina', async () => {
   assert.equal(meta.poster, m.poster);
 });
 
-test('pagina configure: sfondo foto su sei schede (Bundesliga e La Liga restano a colori)', async () => {
+test('pagina configure: sfondo foto su tutte le otto schede', async () => {
   const html = await (await fetch(`${BASE}/configure`)).text();
-  assert.equal((html.match(/class="card has-photo"/g) || []).length, 6);
+  assert.equal((html.match(/class="card has-photo"/g) || []).length, 8);
   for (const host of ['images.legaseriea.it', 'legab.it', 'pinimg.com', 'ftcdn.net', 'gedeon.com', 'vectorstock.com']) {
     assert.ok(html.includes(host), host);
   }

@@ -107,6 +107,13 @@ h1{margin:0;font-size:clamp(30px,7vw,46px);font-weight:900;letter-spacing:-.02em
 .btn[aria-disabled=true],.btn:disabled{opacity:.4;pointer-events:none;animation:none;filter:grayscale(1)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:420px){.row2{grid-template-columns:1fr}}
+.field{margin-bottom:16px}
+.field label{display:block;font-weight:700;margin-bottom:6px}.field small{color:var(--muted);font-weight:500}
+.field input{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.35);color:var(--text);font:14px ui-monospace,SFMono-Regular,Menlo,monospace;outline:none;transition:border-color .2s,box-shadow .2s}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(61,123,255,.3)}
+.field input.bad{border-color:#ff5c7a;box-shadow:0 0 0 3px rgba(255,92,122,.25)}
+.field input.ok{border-color:#38d996}
+.hint{margin-top:6px;font-size:13px;color:var(--muted)}.hint.bad{color:#ffb3c1}.hint.ok{color:#7ff0c0}
 .url{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(0,0,0,.35);border:1px dashed var(--line);font:13px ui-monospace,SFMono-Regular,Menlo,monospace;color:#cfe0ff;word-break:break-all;transition:background .3s}
 .url.flash{background:rgba(61,123,255,.35)}
 .warn{display:none;margin-top:12px;color:#ffb3c1;font-size:14px;text-align:center}
@@ -138,13 +145,18 @@ footer{margin-top:22px;text-align:center;color:var(--muted);font-size:13px}
   </main>
 
   <section class="panel">
+    <div class="field">
+      <label for="up">Il tuo manifest EasySports <small>(facoltativo)</small></label>
+      <input id="up" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://{{ALLOWED_HOST}}/…/manifest.json" value="{{UPSTREAM_VALUE}}">
+      <div class="hint" id="uphint">Se lo lasci vuoto usi il manifest predefinito. Incollane uno tuo per avere i tuoi stream.</div>
+    </div>
     <a class="btn" id="install" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg>Installa in Stremio</a>
     <div class="row2">
       <a class="btn alt" id="web" href="#" target="_blank" rel="noopener">Stremio Web</a>
       <button class="btn alt" id="copy" type="button">Copia link</button>
     </div>
     <div class="url" id="url"></div>
-    <div class="warn" id="warn">Seleziona almeno una competizione.</div>
+    <div class="warn" id="warn">Seleziona almeno una competizione e controlla il manifest.</div>
   </section>
   <footer>Versione {{VERSION}} · il link cambia in base alle competizioni scelte</footer>
 </div>
@@ -153,12 +165,29 @@ footer{margin-top:22px;text-align:center;color:var(--muted);font-size:13px}
 const boxes=[...document.querySelectorAll('#grid input[type=checkbox]')];
 const $=id=>document.getElementById(id);
 const toast=msg=>{const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),1800)};
+const ALLOWED_HOST='{{ALLOWED_HOST}}';
+const b64url=t=>btoa(unescape(encodeURIComponent(t))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+// Manifest EasySports personale: valido solo se https, stesso servizio e finisce con /manifest.json
+function upstream(){
+  const v=$('up').value.trim();
+  if(!v)return {state:'empty'};
+  try{const u=new URL(v);
+    if(u.protocol==='https:'&&u.hostname===ALLOWED_HOST&&!u.port&&!u.search&&!u.hash&&u.pathname.endsWith('/manifest.json')&&u.pathname.length>=20)return {state:'ok',value:u.href};
+  }catch{}
+  return {state:'bad'};
+}
 function path(){const on=boxes.filter(b=>b.checked).map(b=>b.value);
-  return on.length===boxes.length?'/manifest.json':'/cfg/'+on.join(',')+'/manifest.json'}
+  const up=upstream(), all=on.length===boxes.length;
+  if(up.state==='ok')return '/cfg/'+(all?'all':on.join(','))+'/u/'+b64url(up.value)+'/manifest.json';
+  return all?'/manifest.json':'/cfg/'+on.join(',')+'/manifest.json'}
 function refresh(){
   const on=boxes.filter(b=>b.checked).length, p=path(), full=location.origin+p;
   $('n').textContent=on;
-  const disabled=on===0;
+  const up=upstream();
+  const input=$('up'),hint=$('uphint');
+  input.className=up.state==='empty'?'':up.state;hint.className='hint '+(up.state==='empty'?'':up.state);
+  hint.textContent=up.state==='ok'?'Manifest personale riconosciuto: verrà incluso nel link di installazione.':up.state==='bad'?'Manifest non valido: deve essere un link https://{{ALLOWED_HOST}}/…/manifest.json':'Se lo lasci vuoto usi il manifest predefinito. Incollane uno tuo per avere i tuoi stream.';
+  const disabled=on===0||up.state==='bad';
   for(const id of ['install','web','copy']){const e=$(id);e.setAttribute('aria-disabled',disabled);if(id==='copy')e.disabled=disabled}
   $('warn').classList.toggle('on',disabled);
   $('url').textContent=disabled?'—':full;
@@ -167,6 +196,7 @@ function refresh(){
   const u=$('url');u.classList.add('flash');setTimeout(()=>u.classList.remove('flash'),250);
 }
 boxes.forEach(b=>b.addEventListener('change',refresh));
+$('up').addEventListener('input',refresh);
 $('all').onclick=()=>{boxes.forEach(b=>b.checked=true);refresh()};
 $('none').onclick=()=>{boxes.forEach(b=>b.checked=false);refresh()};
 $('copy').onclick=async()=>{const text=location.origin+path();
