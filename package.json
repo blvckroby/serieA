@@ -2,7 +2,7 @@
   "name": "serie-a-stremio-addon",
   "version": "0.1.0",
   "private": true,
-  "description": "Stremio addon that exposes only Italian Serie A events from EasySports.",
+  "description": "Stremio addon: catalogo calcio unico con scelta della competizione, titoli puliti e copertine personalizzate.",
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
