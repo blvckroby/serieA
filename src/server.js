@@ -57,34 +57,22 @@ function upstreamUrl(resource, type, id, prefix = upstreamPrefix) {
 
 // Competizioni supportate. Il titolo EasySports ha la forma "⚽ Paese - Lega : Casa vs Ospite";
 // i riconoscimenti sono volutamente stretti (niente Serie C, Bundesliga austriaca, AFC/CAF Champions League, ecc.).
+// Accetta sia "Paese - Lega :" (vecchio formato) sia "Lega Paese :" (nuovo formato EasySports).
+const withCountry = (country, league) =>
+  new RegExp(`\\b(?:${country}\\s*-?\\s*${league}|${league}\\s*-?\\s*${country})\\s*:`, 'i');
+
 const LEAGUES = [
-  { key: 'serie-a', label: 'Serie A', re: /\bItaly\s*[-–—:]?\s*Serie\s*A\s*:/i },
-  { key: 'serie-b', label: 'Serie B', re: /\bItaly\s*[-–—:]?\s*Serie\s*B\s*:/i },
-
-  { key: 'champions-league', label: 'Champions League', re: /\bUEFA\s*[-–—:]?\s*Champions\s*League\s*:/i },
-  { key: 'europa-league', label: 'Europa League', re: /\bUEFA\s*[-–—:]?\s*Europa\s*League\s*:/i },
-  { key: 'conference-league', label: 'Conference League', re: /\bUEFA\s*[-–—:]?\s*Europa\s*Conference\s*League\s*:/i },
-
-  { key: 'premier-league', label: 'Premier League', re: /\bEngland\s*[-–—:]?\s*Premier\s*League\s*:/i },
-  { key: 'championship', label: 'Championship', re: /\bEngland\s*[-–—:]?\s*Championship\s*:/i },
-
-  { key: 'ligue-1', label: 'Ligue 1', re: /\bFrance\s*[-–—:]?\s*Ligue\s*1\s*:/i },
-  { key: 'bundesliga', label: 'Bundesliga', re: /\bGermany\s*[-–—:]?\s*Bundesliga\s*:/i },
-  { key: 'la-liga', label: 'La Liga', re: /\bSpain\s*[-–—:]?\s*La\s*Liga\s*:/i },
-
-  { key: 'eredivisie', label: 'Eredivisie', re: /\bNetherlands\s*[-–—:]?\s*Eredivisie\s*:/i },
-  { key: 'primeira-liga', label: 'Primeira Liga', re: /\bPortugal\s*[-–—:]?\s*Primeira\s*Liga\s*:/i },
-  { key: 'super-lig', label: 'Super Lig', re: /\bTurkey\s*[-–—:]?\s*Super\s*Lig\s*:/i },
-  { key: 'mls', label: 'MLS', re: /\bUSA\s*[-–—:]?\s*MLS\s*:/i },
-  { key: 'saudi-pro-league', label: 'Saudi Pro League', re: /\bSaudi\s*Arabia\s*[-–—:]?\s*Pro\s*League\s*:/i },
+  { key: 'serie-a', label: 'Serie A', re: withCountry('Italy', 'Serie\\s*A') },
+  { key: 'serie-b', label: 'Serie B', re: withCountry('Italy', 'Serie\\s*B') },
+  { key: 'champions-league', label: 'Champions League', re: /\bUEFA\s*Champions\s*League\s*:/i },
+  { key: 'europa-league', label: 'Europa League', re: /\bUEFA\s*Europa\s*League\s*:/i },
+  { key: 'premier-league', label: 'Premier League', re: withCountry('England', 'Premier\\s*League') },
+  { key: 'ligue-1', label: 'Ligue 1', re: withCountry('France', 'Ligue\\s*1') },
+  { key: 'bundesliga', label: 'Bundesliga', re: withCountry('Germany', 'Bundesliga') },
+  { key: 'la-liga', label: 'La Liga', re: withCountry('Spain', 'La\\s*?Liga') }
 ];
-
 const LEAGUE_KEYS = LEAGUES.map(l => l.key);
-
-const LEAGUE_STRIP_RE = new RegExp(
-  `^.*?(?:${LEAGUES.map(l => l.re.source).join('|')})\\s*`,
-  'iu'
-);
+const LEAGUE_STRIP_RE = new RegExp(`^.*?(?:${LEAGUES.map(l => l.re.source).join('|')})\\s*`, 'iu');
 
 function leagueOf(meta) {
   const name = meta?.name;
@@ -174,7 +162,7 @@ function stripCompetitionPrefix(name) {
   return name
     // Toglie bandiere/icone e il prefisso "Paese - Lega :" di qualunque competizione supportata.
     .replace(LEAGUE_STRIP_RE, '')
-    .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D]/gu, '')
+    .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D\u{E0020}-\u{E007F}]/gu, '')
     .replace(/\s+/g, ' ')
     .replace(/^[-–—:|•\s]+|[-–—:|•\s]+$/g, '')
     .trim();
