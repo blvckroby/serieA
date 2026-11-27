@@ -442,7 +442,8 @@ app.get('/configure', (req, res) => {
   const cards = ALL_COMPETITIONS.map((l, i) => {
     const art = LEAGUE_ART[l.key];
     const photo = art.bg ? `<span class="photo"></span>` : '';
-    return `<label class="card${art.bg ? ' has-photo' : ''}" style="--c1:${art.c1};--c2:${art.c2};--i:${i}${art.logoBg ? `;--logo-bg:${art.logoBg};--logo-bg-image:none` : ''}${art.bg ? `;--bg:url('${art.bg}')` : ''}">
+    const heading = i === 0 ? 'Calcio' : i === LEAGUES.length ? 'Motorsport' : '';
+    return `${heading ? `<h2 class="sect">${heading}</h2>\n` : ''}<label class="card${art.bg ? ' has-photo' : ''}" style="--c1:${art.c1};--c2:${art.c2};--i:${i}${art.logoBg ? `;--logo-bg:${art.logoBg};--logo-bg-image:none` : ''}${art.bg ? `;--bg:url('${art.bg}')` : ''}">
   <input type="checkbox" value="${l.key}"${checked.has(l.key) ? ' checked' : ''}>
   ${photo}<span class="glow"></span>
   <span class="logo">${leagueLogoMarkup(l)}</span>

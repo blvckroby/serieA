@@ -41,11 +41,7 @@ export const LEAGUE_ART = {
     svg: `<circle cx="32" cy="32" r="22" fill="#fff"/><path d="M14 40a22 22 0 0 1 36 0z" fill="#c8102e"/><path d="M14 40h36" stroke="#111" stroke-width="3"/><path d="M13 27a22 22 0 0 1 38 0" fill="none" stroke="#111" stroke-width="3"/>` },
   'la-liga': { bg: '/league-logos/bg/la-liga.png', c1: '#d6003a', c2: '#ff8aa1', note: 'Spagna',
     svg: `<circle cx="32" cy="32" r="22" fill="#fff"/><path d="M32 10a22 22 0 0 1 0 44 11 11 0 0 1 0-22 11 11 0 0 0 0-22z" fill="#d6003a"/><circle cx="32" cy="21" r="3" fill="#fff"/><circle cx="32" cy="43" r="3" fill="#d6003a"/>` },
-  'formula-1': { c1: '#e10600', c2: '#15151e', note: 'Motorsport', svg: carBadge('F1', '#e10600') },
-  'formula-2': { c1: '#0082fa', c2: '#15151e', note: 'Motorsport', svg: carBadge('F2', '#0082fa') },
-  'formula-3': { c1: '#8a2be2', c2: '#15151e', note: 'Motorsport', svg: carBadge('F3', '#8a2be2') },
-  'motogp': { c1: '#ff3b1d', c2: '#111111', note: 'Motorsport', svg: wheelBadge('GP', '#ff3b1d') },
-  'moto2': { c1: '#00a3a3', c2: '#111111', note: 'Motorsport', svg: wheelBadge('M2', '#00a3a3') },
-  'moto3': { c1: '#f5a300', c2: '#111111', note: 'Motorsport', svg: wheelBadge('M3', '#f5a300', '#111') }
+  'formula-1': { c1: '#e10600', c2: '#15151e', note: 'F1 · F2 · F3', svg: carBadge('F1', '#e10600') },
+  'motogp': { c1: '#ff3b1d', c2: '#111111', note: 'MotoGP · Moto2 · Moto3', svg: wheelBadge('GP', '#ff3b1d') },
 };
 export const ballSvg = ball;

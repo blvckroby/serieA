@@ -31,7 +31,7 @@ test('manifest: un catalogo per sport (calcio + motorsport) con genere, id con p
   assert.equal(m.catalogs.length, 2);
   assert.equal(m.catalogs[0].id, 'calcio');
   assert.equal(m.catalogs[1].id, 'motorsport');
-  assert.deepEqual(m.catalogs[1].extra[0].options, ['Formula 1', 'Formula 2', 'Formula 3', 'MotoGP', 'Moto2', 'Moto3']);
+  assert.deepEqual(m.catalogs[1].extra[0].options, ['Formula 1', 'MotoGP']);
   assert.deepEqual(m.catalogs[0].extra[0].options, Object.values(LABELS));
   assert.equal(m.catalogs[0].extra[0].isRequired, false);
   assert.equal(m.behaviorHints.configurable, true);
@@ -293,10 +293,10 @@ test('configure: campo manifest personale, valore precompilato e sfondi Bundesli
 
 test('pagina configure: schede a tema, stemmi, link e script', async () => {
   const html = await (await fetch(`${BASE}/configure`)).text();
-  assert.equal((html.match(/class="card[ "]/g) || []).length, 14);
+  assert.equal((html.match(/class="card[ "]/g) || []).length, 10);
   // stemma disegnato oppure logo ufficiale caricato in src/assets/leagues
-  assert.equal((html.match(/<svg class="emblem"|<img class="emblem-img"/g) || []).length, 14);
-  for (const c of ['--c1:', 'stremio://', 'web.stremio.com', '14 competizioni']) assert.ok(html.includes(c), c);
+  assert.equal((html.match(/<svg class="emblem"|<img class="emblem-img"/g) || []).length, 10);
+  for (const c of ['--c1:', 'stremio://', 'web.stremio.com', '10 competizioni']) assert.ok(html.includes(c), c);
   assert.ok(!html.includes('{{'), 'segnaposto non sostituiti');
 });
 

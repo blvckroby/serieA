@@ -28,7 +28,7 @@ _Le immagini sono esempi illustrativi: l'aspetto reale dipende dall'app che usi.
 | --- | --- |
 | **Catalogo unico** | Un solo catalogo, `Calcio`, con filtro **genere** per scegliere la competizione. |
 | **8 competizioni di calcio** | Serie A, Serie B, Champions League, Europa League, Premier League, Ligue 1, Bundesliga, La Liga. |
-| **6 categorie motorsport** | Formula 1, Formula 2, Formula 3, MotoGP, Moto2, Moto3, in un secondo catalogo, `Motorsport`, con lo stesso filtro **genere**. |
+| **2 voci motorsport** | **Formula 1** (con F2 e F3) e **MotoGP** (con Moto2 e Moto3), in un secondo catalogo, `Motorsport`, con lo stesso filtro **genere**. |
 | **Titoli puliti** | Da `⚽ UEFA Champions League : AEK Athens 🇬🇷 vs Real Madrid 🇪🇸` a **AEK Athens vs Real Madrid**. |
 | **Copertine personalizzate** | Una copertina 16:9 per partita, mantenuta anche nella schermata delle fonti. |
 | **Canali Simulcast** | Gli eventi "Simulcast" diventano **Diretta Goal** (Serie A, Champions, Europa League) o **Zona Goal** (Serie B), con la loro immagine. |
@@ -83,13 +83,33 @@ Restano **fuori**: Serie C, La Liga 2, Bundesliga austriaca, AFC/CAF Champions L
 
 ## Motorsport
 
-Un secondo catalogo, `Motorsport`, legge `catalog/Live Sports/motorsport.json` dalla stessa sorgente e tiene solo **Formula 1, Formula 2, Formula 3, MotoGP, Moto2 e Moto3**. Formula E, MotoE, F1 Academy e le altre serie restano fuori.
+Un secondo catalogo, `Motorsport`, legge `catalog/Live Sports/motorsport.json` dalla stessa sorgente. Ha **due sole voci**, sia nel catalogo sia nella pagina di configurazione:
 
-- **Titoli puliti**: `🏎️🇶🇦 Formula 1 Qatar Grand Prix – Practice 1 | Lusail, Qatar | 27 November 2026` diventa **F1 Qatar – Prove libere 1**; `🏎️ MotoGP : Round 22 | Valencia Practice 1` diventa **MotoGP Valencia – Prove libere 1**.
-- **Sessioni riconosciute**: prove libere, qualifiche (anche Q1/Q2), sprint, sprint qualifiche, feature race, gara, warm up. I formati simili (`Moto 3`, `Formula One`, `FIA Formula 3`, `F2:`, `Tissot Sprint`, sessione dopo un `|`…) sono gestiti da `src/motorsport.js`.
-- **Copertine**: una cartella per categoria in `src/covers/` (`formula-1/`, `formula-2/`, `formula-3/`, `motogp/`, `moto2/`, `moto3/`). Nome file: `gran-premio-sessione.jpg`, per esempio `qatar-free-practice-1.jpg`, `qatar-qualifying.jpg`, `qatar-race.jpg`, `valencia-sprint.png`. L'ordine di ricerca è **gp-sessione**, poi **solo gp** (`qatar.jpg`, vale per tutte le sessioni di quel GP), poi `default`. Senza file resta la copertina originale. Formati `.jpg`, `.png`, `.webp`; maiuscole e `_` al posto dei `-` sono accettati.
-- **Sessioni nei nomi file**: `free-practice-1`, `free-practice-2`, `free-practice-3`, `sprint-qualifying`, `sprint`, `qualifying`, `qualifying-1`, `qualifying-2`, `feature-race`, `race`, `warm-up`.
-- **Aggiungere una categoria** (es. MotoE): una riga in `MOTOR_SERIES` (`src/motorsport.js`) e una voce in `src/league-art.js`.
+- **Formula 1**: raccoglie Formula 1, Formula 2 e Formula 3;
+- **MotoGP**: raccoglie MotoGP, Moto2 e Moto3.
+
+Formula E, MotoE, F1 Academy e le altre serie restano fuori. I titoli puliti mantengono la sigla della categoria, così si distinguono: `🏎️🇶🇦 Formula 1 Qatar Grand Prix – Practice 1 | Lusail…` diventa **F1 Qatar – Prove libere 1**, `🏎️ Moto3 : Round 22 | Valencia Qualifying 1` diventa **Moto3 Valencia – Qualifiche 1**.
+
+Le sessioni riconosciute sono prove libere, qualifiche (anche Q1/Q2), sprint, sprint qualifiche, feature race, gara e warm up; i formati simili (`Moto 3`, `Formula One`, `FIA Formula 3`, `F2:`, `Tissot Sprint`, sessione dopo un `|`…) sono gestiti da `src/motorsport.js`.
+
+### Copertine motorsport
+
+Due cartelle in `src/covers/`: `formula-1/` e `motogp/`. Nome file: `[prefisso-]gran-premio-sessione.jpg`. Ordine di ricerca: **gp-sessione**, poi **solo gp** (vale per tutte le sessioni di quel GP), poi **default**. Senza file resta la copertina originale. Formati `.jpg`, `.png`, `.webp`; maiuscole e `_` al posto dei `-` sono accettati.
+
+| Categoria | Prefisso | Esempi |
+| --- | --- | --- |
+| Formula 1 | nessuno | `qatar-free-practice-1.jpg`, `qatar-qualifying.jpg`, `qatar-race.jpg`, `qatar.jpg`, `default.png` |
+| Formula 2 | `f2-` | `f2-qatar-sprint.jpg`, `f2-qatar-feature-race.jpg`, `f2-qatar.jpg`, `f2-default.png` |
+| Formula 3 | `f3-` | `f3-qatar-sprint.jpg`, `f3-default.png` |
+| MotoGP | nessuno | `valencia-free-practice-1.jpg`, `valencia-sprint.png`, `valencia.jpg`, `default.png` |
+| Moto2 | `moto2-` | `moto2-valencia-qualifying-2.jpg`, `moto2-default.png` |
+| Moto3 | `moto3-` | `moto3-valencia-race.jpg`, `moto3-default.png` |
+
+Il prefisso serve perché F1 e F2 (o MotoGP e Moto3) hanno sessioni con lo stesso nome. Le serie minori non usano mai le copertine della categoria principale: senza i loro file restano con la copertina originale.
+
+Nomi delle sessioni nei file: `free-practice-1`, `free-practice-2`, `free-practice-3`, `sprint-qualifying`, `sprint`, `qualifying`, `qualifying-1`, `qualifying-2`, `feature-race`, `race`, `warm-up`.
+
+**Aggiungere una categoria** (es. MotoE): una riga in `CATEGORIES` (`src/motorsport.js`), che la collega a uno dei due gruppi.
 
 ## Copertine del calcio
 
@@ -156,7 +176,7 @@ Per provare titoli veri: crea un file `miei-eventi.json` con `[{"id":"soccer:1",
 
 ```
 src/server.js         addon: manifest, cataloghi, scheda, stream, configurazione
-src/motorsport.js     riconoscimento F1/F2/F3/MotoGP/Moto2/Moto3, titoli e copertine
+src/motorsport.js     riconoscimento F1/F2/F3 e MotoGP/Moto2/Moto3 (due voci), titoli e copertine
 src/configure.html    pagina di configurazione
 src/league-art.js     colori, sfondi e stemmi delle competizioni
 src/covers/           copertine delle partite e delle gare, una cartella per competizione

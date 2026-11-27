@@ -2,18 +2,25 @@
 // Modulo indipendente: usato da server.js, nessuna dipendenza esterna.
 import { readdirSync } from 'node:fs';
 
-// Per aggiungere una categoria (es. MotoE, Formula E) basta una riga: chiave, nome, sigla, cartella copertine e
-// "token" = come compare all'inizio del titolo EasySports. Poi serve la voce in league-art.js.
+// Due voci nel catalogo e nella pagina di configurazione: "Formula 1" (con F2 e F3) e "MotoGP" (con Moto2 e Moto3).
 export const MOTOR_SERIES = [
-  { key: 'formula-1', label: 'Formula 1', short: 'F1',     folder: 'formula-1', token: '(?:formula[\\s-]*(?:1|one)(?!\\d)|f1(?!\\w))(?!\\s*academy)' },
-  { key: 'formula-2', label: 'Formula 2', short: 'F2',     folder: 'formula-2', token: '(?:formula[\\s-]*2(?!\\d)|f2(?!\\w))' },
-  { key: 'formula-3', label: 'Formula 3', short: 'F3',     folder: 'formula-3', token: '(?:formula[\\s-]*3(?!\\d)|f3(?!\\w))' },
-  { key: 'motogp',    label: 'MotoGP',    short: 'MotoGP', folder: 'motogp',    token: 'moto[\\s-]?gp(?!\\w)' },
-  { key: 'moto2',     label: 'Moto2',     short: 'Moto2',  folder: 'moto2',     token: 'moto[\\s-]?2(?!\\d)' },
-  { key: 'moto3',     label: 'Moto3',     short: 'Moto3',  folder: 'moto3',     token: 'moto[\\s-]?3(?!\\d)' }
+  { key: 'formula-1', label: 'Formula 1', folder: 'formula-1' },
+  { key: 'motogp',    label: 'MotoGP',    folder: 'motogp' }
 ];
-const SERIES_RES = MOTOR_SERIES.map(s => [s, new RegExp(`^${s.token}`, 'i')]);
-// "FIA Formula 2", "FIM MotoGP World Championship" ecc.
+// Le categorie riconosciute nei titoli EasySports e il gruppo a cui appartengono.
+//   token = come compare all'inizio del titolo; short = sigla nel titolo pulito;
+//   coverPrefix = prefisso dei file copertina (vuoto per F1 e MotoGP, così non si confondono con le serie minori).
+// Per aggiungere una categoria (es. MotoE) basta una riga qui.
+const CATEGORIES = [
+  { group: 'formula-1', short: 'F1',     coverPrefix: '',       token: '(?:formula[\\s-]*(?:1|one)(?!\\d)|f1(?!\\w))(?!\\s*academy)' },
+  { group: 'formula-1', short: 'F2',     coverPrefix: 'f2',     token: '(?:formula[\\s-]*2(?!\\d)|f2(?!\\w))' },
+  { group: 'formula-1', short: 'F3',     coverPrefix: 'f3',     token: '(?:formula[\\s-]*3(?!\\d)|f3(?!\\w))' },
+  { group: 'motogp',    short: 'MotoGP', coverPrefix: '',       token: 'moto[\\s-]?gp(?!\\w)' },
+  { group: 'motogp',    short: 'Moto2',  coverPrefix: 'moto2',  token: 'moto[\\s-]?2(?!\\d)' },
+  { group: 'motogp',    short: 'Moto3',  coverPrefix: 'moto3',  token: 'moto[\\s-]?3(?!\\d)' }
+];
+const SERIES_RES = CATEGORIES.map(c => [c, new RegExp(`^${c.token}`, 'i')]);
+// // "FIA Formula 2", "FIM MotoGP World Championship" ecc.
 const PREFIX = /^(?:(?:fia|fim)\s+)?(?:world\s+championship\s+)?/i;
 
 // Toglie emoji, bandiere, selettori di variante; riduce gli spazi.
@@ -93,16 +100,21 @@ export function parseMotorsport(name) {
   if (!gp) return null;
 
   const session = parseSession(sess);
+  const group = MOTOR_SERIES.find(g => g.key === series.group);
+  const pre = series.coverPrefix ? `${series.coverPrefix}-` : '';
   return {
-    key: series.key, label: series.label, short: series.short, folder: series.folder,
+    key: group.key, label: group.label, folder: group.folder,        // gruppo: "formula-1" o "motogp"
+    short: series.short, coverPrefix: series.coverPrefix,             // categoria: F1/F2/F3, MotoGP/Moto2/Moto3
     gp, round, session,
-    title: `${series.short} ${gp}${session.it ? ' – ' + session.it : ''}`, // "F1 Qatar – Prove libere 1"
-    coverName: `${slug(gp)}-${session.slug}`                                // "qatar-free-practice-1"
+    title: `${series.short} ${gp}${session.it ? ' – ' + session.it : ''}`, // "F2 Qatar – Sprint"
+    coverName: `${pre}${slug(gp)}-${session.slug}`                         // "f2-qatar-sprint", "qatar-free-practice-1" (F1)
   };
 }
 
-// Copertine locali di una categoria: src/covers/<cartella>/<gp>-<sessione>.(jpg|png|webp)
+// Copertine locali di un gruppo: src/covers/<formula-1|motogp>/<[prefisso-]gp>-<sessione>.(jpg|png|webp)
 // Ordine: gp-sessione -> gp (valida per tutte le sessioni) -> default. Nessun file: copertina originale.
+// F1 e MotoGP non hanno prefisso (qatar-free-practice-1.jpg); F2/F3/Moto2/Moto3 sì (f2-qatar-sprint.jpg, moto3-valencia.jpg,
+// f2-default.jpg) e non ripiegano mai sulle copertine della categoria principale.
 export function makeMotorCovers(dir, urlPath) {
   const files = new Map();
   for (const file of readdirSync(dir)) {
@@ -112,7 +124,8 @@ export function makeMotorCovers(dir, urlPath) {
   return {
     files,
     cover(info, base) {
-      const file = [info.coverName, slug(info.gp), 'default'].map(k => files.get(k)).find(Boolean);
+      const pre = info.coverPrefix ? `${info.coverPrefix}-` : '';
+      const file = [info.coverName, `${pre}${slug(info.gp)}`, `${pre}default`].map(k => files.get(k)).find(Boolean);
       return file ? `${base}${urlPath}/${encodeURIComponent(file)}` : null;
     }
   };

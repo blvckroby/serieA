@@ -20,14 +20,14 @@ test('parser: titoli reali EasySports', () => {
 
 test('parser: tutte le categorie e le varianti di scrittura', () => {
   const table = [
-    ['🏎️ Moto2 : Round 22 | Valencia Qualifying 2', 'moto2', 'valencia-qualifying-2'],
-    ['🏎️ Moto 3 : Round 22 | Valencia Q1', 'moto3', 'valencia-qualifying-1'],
+    ['🏎️ Moto2 : Round 22 | Valencia Qualifying 2', 'motogp', 'moto2-valencia-qualifying-2'],
+    ['🏎️ Moto 3 : Round 22 | Valencia Q1', 'motogp', 'moto3-valencia-qualifying-1'],
     ['🏎️ MotoGP : Round 22 | Valencia Tissot Sprint', 'motogp', 'valencia-sprint'],
     ['🏎️ MotoGP : Round 22 | Valencia Grand Prix', 'motogp', 'valencia-race'],
     ['🏎️ FIM MotoGP World Championship : Round 3 | Qatar Warm Up', 'motogp', 'qatar-warm-up'],
-    ['🏎️ Formula 2 Abu Dhabi Grand Prix – Sprint Race | Yas Marina', 'formula-2', 'abu-dhabi-sprint'],
-    ['🏎️ F3: Abu Dhabi GP | Feature Race | Yas Marina', 'formula-3', 'abu-dhabi-feature-race'],
-    ['🏎️ FIA Formula 3 Emilia-Romagna Grand Prix - Qualifying', 'formula-3', 'emilia-romagna-qualifying'],
+    ['🏎️ Formula 2 Abu Dhabi Grand Prix – Sprint Race | Yas Marina', 'formula-1', 'f2-abu-dhabi-sprint'],
+    ['🏎️ F3: Abu Dhabi GP | Feature Race | Yas Marina', 'formula-1', 'f3-abu-dhabi-feature-race'],
+    ['🏎️ FIA Formula 3 Emilia-Romagna Grand Prix - Qualifying', 'formula-1', 'f3-emilia-romagna-qualifying'],
     ['🏎️ Formula 1 Qatar Grand Prix | Sprint Qualifying | Lusail', 'formula-1', 'qatar-sprint-qualifying'],
     ['🏎️ Formula One Monaco Grand Prix Free Practice 2', 'formula-1', 'monaco-free-practice-2'],
     ['🏎️ Formula 1 Qatar Grand Prix', 'formula-1', 'qatar-race']
@@ -38,6 +38,12 @@ test('parser: tutte le categorie e le varianti di scrittura', () => {
     assert.equal(r.key, key, name);
     assert.equal(r.coverName, cover, name);
   }
+});
+
+test('parser: F2/F3 e Moto2/Moto3 stanno nel gruppo di F1 e MotoGP ma mantengono la loro sigla nel titolo', () => {
+  assert.deepEqual([P('🏎️ Formula 2 Qatar Grand Prix – Sprint Race | Lusail').key, P('🏎️ Formula 2 Qatar Grand Prix – Sprint Race | Lusail').title], ['formula-1', 'F2 Qatar – Sprint']);
+  assert.equal(P('🏎️ Formula 3 Qatar Grand Prix – Practice | Lusail').title, 'F3 Qatar – Prove libere');
+  assert.deepEqual([P('🏎️ Moto3 : Round 22 | Valencia Race').key, P('🏎️ Moto3 : Round 22 | Valencia Race').title], ['motogp', 'Moto3 Valencia – Gara']);
 });
 
 test('parser: Formula E, MotoE, F1 Academy, calcio e altro restano fuori', () => {
@@ -59,6 +65,24 @@ test('copertine: gp-sessione -> gp -> default -> nessuna', () => {
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
 
+test('copertine: F2/Moto3 usano il prefisso e non ripiegano sulle copertine di F1/MotoGP', () => {
+  const d = mkdtempSync(path.join(tmpdir(), 'ms-'));
+  try {
+    const f2 = P('🏎️ Formula 2 Qatar Grand Prix – Sprint Race | Lusail');
+    const f1 = P('🏎️ Formula 1 Qatar Grand Prix – Race | Lusail');
+    for (const f of ['qatar-race.jpg', 'qatar.jpg', 'default.png']) writeFileSync(path.join(d, f), 'x'); // solo F1
+    const c = () => makeMotorCovers(d, '/c');
+    assert.equal(c().cover(f2, 'https://b'), null);                          // F2 non prende le copertine F1
+    assert.equal(c().cover(f1, 'https://b'), 'https://b/c/qatar-race.jpg');
+    writeFileSync(path.join(d, 'f2-default.png'), 'x');
+    assert.equal(c().cover(f2, 'https://b'), 'https://b/c/f2-default.png');
+    writeFileSync(path.join(d, 'f2-qatar.webp'), 'x');
+    assert.equal(c().cover(f2, 'https://b'), 'https://b/c/f2-qatar.webp');
+    writeFileSync(path.join(d, 'f2-qatar-sprint.jpg'), 'x');
+    assert.equal(c().cover(f2, 'https://b'), 'https://b/c/f2-qatar-sprint.jpg');
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});
+
 // ---------- Addon completo con sorgente finta ----------
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 8000 + Math.floor(Math.random() * 300);
@@ -72,9 +96,8 @@ const byId = (metas, n) => metas.find(m => m.id === `seriea:motorsport:${n}`);
 
 before(async () => {
   for (const [folder, files] of Object.entries({
-    'formula-1': ['qatar-free-practice-1.jpg', 'default.png'],
-    'motogp': ['valencia.webp'],
-    'moto2': ['valencia_free_practice_1.png']
+    'formula-1': ['qatar-free-practice-1.jpg', 'default.png', 'f3-qatar-feature-race.png'],
+    'motogp': ['valencia.webp', 'moto2_valencia_free_practice_1.png']
   })) {
     mkdirSync(path.join(dir, folder), { recursive: true });
     for (const f of files) writeFileSync(path.join(dir, folder, f), 'x');
@@ -89,7 +112,7 @@ before(async () => {
 });
 after(() => { server?.kill(); rmSync(dir, { recursive: true, force: true }); });
 
-test('motorsport: catalogo senza genere = solo le sei categorie, niente Formula E / MotoE / F1 Academy', async () => {
+test('motorsport: catalogo senza genere = F1/F2/F3 e MotoGP/Moto2/Moto3, niente Formula E / MotoE / F1 Academy', async () => {
   const ids = (await motor()).map(m => m.id.replace('seriea:motorsport:', '')).sort((a, b) => a - b);
   assert.deepEqual(ids, ['1', '2', '3', '4', '5', '6', '7', '8']);
 });
@@ -109,19 +132,23 @@ test('motorsport: se manca la copertina della sessione si usa quella del GP, poi
   assert.equal(byId(gp, 8).poster, 'https://addon.test/covers/motogp/valencia.webp');   // vale per ogni sessione
 });
 
-test('motorsport: ogni genere contiene solo la sua categoria', async () => {
-  assert.deepEqual((await motor('Formula 1')).map(m => m.id), ['seriea:motorsport:1', 'seriea:motorsport:7']);
-  assert.deepEqual((await motor('Formula 2')).map(m => m.id), ['seriea:motorsport:5']);
-  assert.deepEqual((await motor('Formula 3')).map(m => m.id), ['seriea:motorsport:6']);
-  assert.deepEqual((await motor('MotoGP')).map(m => m.id), ['seriea:motorsport:2', 'seriea:motorsport:8']);
-  assert.deepEqual((await motor('Moto2')).map(m => m.id), ['seriea:motorsport:3']);
-  assert.deepEqual((await motor('Moto3')).map(m => m.id), ['seriea:motorsport:4']);
-  assert.equal(byId(await motor('Moto2'), 3).poster, 'https://addon.test/covers/moto2/valencia_free_practice_1.png');
+test('motorsport: due soli generi; Formula 1 raccoglie F1/F2/F3, MotoGP raccoglie MotoGP/Moto2/Moto3', async () => {
+  const f1 = await motor('Formula 1');
+  assert.deepEqual(f1.map(m => m.id), ['seriea:motorsport:1', 'seriea:motorsport:5', 'seriea:motorsport:6', 'seriea:motorsport:7']);
+  assert.deepEqual(f1.map(m => m.name), ['F1 Qatar – Prove libere 1', 'F2 Qatar – Sprint', 'F3 Qatar – Feature Race', 'F1 Qatar – Gara']);
+  const gp = await motor('MotoGP');
+  assert.deepEqual(gp.map(m => m.id), ['seriea:motorsport:2', 'seriea:motorsport:3', 'seriea:motorsport:4', 'seriea:motorsport:8']);
+  assert.deepEqual(gp.map(m => m.name), ['MotoGP Valencia – Prove libere 1', 'Moto2 Valencia – Prove libere 1', 'Moto3 Valencia – Qualifiche 1', 'MotoGP Valencia – Sprint']);
+  assert.deepEqual(await motor('Formula 2'), []); // i vecchi generi separati non esistono più
+  assert.equal(byId(gp, 3).poster, 'https://addon.test/covers/motogp/moto2_valencia_free_practice_1.png');
+  assert.equal(byId(f1, 6).poster, 'https://addon.test/covers/formula-1/f3-qatar-feature-race.png');
 });
 
 test('motorsport: senza file né default resta la copertina originale', async () => {
-  assert.equal(byId(await motor('Formula 2'), 5).poster, 'orig');
-  assert.equal(byId(await motor('Formula 2'), 5).name, 'F2 Qatar – Sprint');
+  // F2 non prende default.png di F1 (serve f2-default): resta quella originale
+  assert.equal(byId(await motor('Formula 1'), 5).poster, 'orig');
+  // Moto3 non prende valencia.webp di MotoGP (serve moto3-valencia): resta quella originale
+  assert.equal(byId(await motor('MotoGP'), 4).poster, 'orig');
 });
 
 test('motorsport: gli eventi non finiscono nel catalogo calcio (e viceversa)', async () => {
@@ -146,13 +173,13 @@ test('configurazione: /cfg/ con categorie motorsport e calcio', async () => {
   const onlyF1 = await json('/cfg/formula-1/manifest.json');
   assert.deepEqual(onlyF1.catalogs.map(c => c.id), ['motorsport']);
   assert.deepEqual(onlyF1.catalogs[0].extra[0].options, ['Formula 1']);
-  assert.deepEqual((await motor(undefined, '/cfg/formula-1')).map(m => m.id), ['seriea:motorsport:1', 'seriea:motorsport:7']);
+  assert.deepEqual((await motor(undefined, '/cfg/formula-1')).map(m => m.id), ['seriea:motorsport:1', 'seriea:motorsport:5', 'seriea:motorsport:6', 'seriea:motorsport:7']);
   assert.deepEqual((await json('/cfg/formula-1/catalog/Live%20Sports/calcio.json')).metas, []);
   assert.deepEqual((await json('/cfg/formula-1/stream/Live%20Sports/seriea%3Amotorsport%3A2.json')).streams, []); // MotoGP non abilitato
 
-  const mixed = await json('/cfg/serie-a,moto3/manifest.json');
+  const mixed = await json('/cfg/serie-a,motogp/manifest.json');
   assert.deepEqual(mixed.catalogs.map(c => c.id), ['calcio', 'motorsport']);
-  assert.deepEqual(mixed.catalogs[1].extra[0].options, ['Moto3']);
+  assert.deepEqual(mixed.catalogs[1].extra[0].options, ['MotoGP']);
 
   const onlySoccer = await json('/cfg/serie-a/manifest.json');
   assert.deepEqual(onlySoccer.catalogs.map(c => c.id), ['calcio']);
@@ -160,6 +187,18 @@ test('configurazione: /cfg/ con categorie motorsport e calcio', async () => {
 
 test('pagina configure: schede motorsport presenti e selezionabili', async () => {
   const html = await (await fetch(`${BASE}/configure`)).text();
-  for (const k of ['formula-1', 'formula-2', 'formula-3', 'motogp', 'moto2', 'moto3']) assert.ok(html.includes(`value="${k}"`), k);
+  for (const k of ['formula-1', 'motogp']) assert.ok(html.includes(`value="${k}"`), k);
+  for (const k of ['formula-2', 'formula-3', 'moto2', 'moto3']) assert.ok(!html.includes(`value="${k}"`), k);
+  assert.ok(html.includes('F1 · F2 · F3') && html.includes('MotoGP · Moto2 · Moto3'));
   assert.match(await (await fetch(`${BASE}/cfg/motogp/configure`)).text(), /value="motogp" checked/);
+});
+
+test('pagina configure: titoli di sezione Calcio / Motorsport e contatore dinamico', async () => {
+  const html = await (await fetch(`${BASE}/configure`)).text();
+  assert.equal((html.match(/<h2 class="sect">/g) || []).length, 2);
+  assert.ok(html.indexOf('<h2 class="sect">Calcio') < html.indexOf('value="serie-a"'));
+  assert.ok(html.indexOf('<h2 class="sect">Motorsport') > html.indexOf('value="la-liga"'));
+  assert.ok(html.indexOf('<h2 class="sect">Motorsport') < html.indexOf('value="formula-1"'));
+  assert.ok(html.includes('su 10 competizioni'));
+  assert.ok(!html.includes('{{'));
 });
