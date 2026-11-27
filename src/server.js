@@ -197,7 +197,9 @@ const CHAMPIONS_ALIASES = {
   'ofi': 'ofi-crete', 'ofi crete': 'ofi-crete', 'ararat armenia': 'ararat-armenia', 'dinamo zagreb': 'dinamo-zagreb', 'gnk dinamo zagreb': 'dinamo-zagreb',
   'omonia': 'omonia-nicosia', 'ac omonia': 'omonia-nicosia', 'bodo/glimt': 'bodo-glimt', 'real sociedad de futbol': 'real-sociedad',
   'olympique lyonnais': 'lyon', 'stade rennais': 'rennes', 'stade rennais fc': 'rennes', 'nec': 'nec-nijmegen',
-  'rc lens': 'lens', 'losc lille': 'lille', 'lask linz': 'lask', 'fc porto': 'porto', 'como 1907': 'como'
+  'rc lens': 'lens', 'losc lille': 'lille', 'lask linz': 'lask', 'fc porto': 'porto', 'como 1907': 'como',
+  // Ligue 1: "FC" viene scartato dal nome, quindi "Paris FC" diventa "paris"; "Brest" non combacia con "Stade Brestois 29".
+  'paris': 'paris-fc', 'brest': 'stade-brestois-29', 'stade brestois': 'stade-brestois-29'
 };
 const SLUG_VARIANTS = { 'bodo-glimt': ['bod-glimt'], 'bod-glimt': ['bodo-glimt'] };
 const LATIN_FIX = { 'ø': 'o', 'Ø': 'o', 'ð': 'd', 'đ': 'd', 'ł': 'l', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe' };
