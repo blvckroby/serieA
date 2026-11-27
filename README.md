@@ -27,7 +27,8 @@ _Le immagini sono esempi illustrativi: l'aspetto reale dipende dall'app che usi.
 | Funzione | Descrizione |
 | --- | --- |
 | **Catalogo unico** | Un solo catalogo, `Calcio`, con filtro **genere** per scegliere la competizione. |
-| **8 competizioni** | Serie A, Serie B, Champions League, Europa League, Premier League, Ligue 1, Bundesliga, La Liga. |
+| **8 competizioni di calcio** | Serie A, Serie B, Champions League, Europa League, Premier League, Ligue 1, Bundesliga, La Liga. |
+| **6 categorie motorsport** | Formula 1, Formula 2, Formula 3, MotoGP, Moto2, Moto3, in un secondo catalogo, `Motorsport`, con lo stesso filtro **genere**. |
 | **Titoli puliti** | Da `⚽ UEFA Champions League : AEK Athens 🇬🇷 vs Real Madrid 🇪🇸` a **AEK Athens vs Real Madrid**. |
 | **Copertine personalizzate** | Una copertina 16:9 per partita, mantenuta anche nella schermata delle fonti. |
 | **Canali Simulcast** | Gli eventi "Simulcast" diventano **Diretta Goal** (Serie A, Champions, Europa League) o **Zona Goal** (Serie B), con la loro immagine. |
@@ -80,7 +81,17 @@ Il riconoscimento è **stretto** e si basa sul titolo dell'evento (`Paese - Lega
 
 Restano **fuori**: Serie C, La Liga 2, Bundesliga austriaca, AFC/CAF Champions League, Conference League e le competizioni femminili. Se un titolo reale è scritto in modo diverso, basta correggere la voce corrispondente in `LEAGUES` (`src/server.js`).
 
-## Copertine
+## Motorsport
+
+Un secondo catalogo, `Motorsport`, legge `catalog/Live Sports/motorsport.json` dalla stessa sorgente e tiene solo **Formula 1, Formula 2, Formula 3, MotoGP, Moto2 e Moto3**. Formula E, MotoE, F1 Academy e le altre serie restano fuori.
+
+- **Titoli puliti**: `🏎️🇶🇦 Formula 1 Qatar Grand Prix – Practice 1 | Lusail, Qatar | 27 November 2026` diventa **F1 Qatar – Prove libere 1**; `🏎️ MotoGP : Round 22 | Valencia Practice 1` diventa **MotoGP Valencia – Prove libere 1**.
+- **Sessioni riconosciute**: prove libere, qualifiche (anche Q1/Q2), sprint, sprint qualifiche, feature race, gara, warm up. I formati simili (`Moto 3`, `Formula One`, `FIA Formula 3`, `F2:`, `Tissot Sprint`, sessione dopo un `|`…) sono gestiti da `src/motorsport.js`.
+- **Copertine**: una cartella per categoria in `src/covers/` (`formula-1/`, `formula-2/`, `formula-3/`, `motogp/`, `moto2/`, `moto3/`). Nome file: `gran-premio-sessione.jpg`, per esempio `qatar-free-practice-1.jpg`, `qatar-qualifying.jpg`, `qatar-race.jpg`, `valencia-sprint.png`. L'ordine di ricerca è **gp-sessione**, poi **solo gp** (`qatar.jpg`, vale per tutte le sessioni di quel GP), poi `default`. Senza file resta la copertina originale. Formati `.jpg`, `.png`, `.webp`; maiuscole e `_` al posto dei `-` sono accettati.
+- **Sessioni nei nomi file**: `free-practice-1`, `free-practice-2`, `free-practice-3`, `sprint-qualifying`, `sprint`, `qualifying`, `qualifying-1`, `qualifying-2`, `feature-race`, `race`, `warm-up`.
+- **Aggiungere una categoria** (es. MotoE): una riga in `MOTOR_SERIES` (`src/motorsport.js`) e una voce in `src/league-art.js`.
+
+## Copertine del calcio
 
 Ogni competizione ha la sua cartella in `src/covers/`:
 
@@ -145,9 +156,10 @@ Per provare titoli veri: crea un file `miei-eventi.json` con `[{"id":"soccer:1",
 
 ```
 src/server.js         addon: manifest, cataloghi, scheda, stream, configurazione
+src/motorsport.js     riconoscimento F1/F2/F3/MotoGP/Moto2/Moto3, titoli e copertine
 src/configure.html    pagina di configurazione
 src/league-art.js     colori, sfondi e stemmi delle competizioni
-src/covers/           copertine delle partite, una cartella per competizione
+src/covers/           copertine delle partite e delle gare, una cartella per competizione
 src/assets/           logo dell'addon, loghi competizioni, immagini Simulcast
 test/                 test automatici e sorgente finta
 docs/                 anteprime usate in questo README

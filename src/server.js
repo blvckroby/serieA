@@ -4,10 +4,11 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs';
 import { LEAGUE_ART } from './league-art.js';
+import { MOTOR_SERIES, parseMotorsport, makeMotorCovers } from './motorsport.js';
 
 const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'logo.png');
 const ID_PREFIX = 'seriea:';
-const VERSION = '0.10.0';
+const VERSION = '0.11.0';
 // Hash del file: cambia l'URL del logo quando cambia l'immagine, così Stremio/Nuvio non usano la cache vecchia.
 const LOGO_HASH = createHash('md5').update(readFileSync(LOGO_PATH)).digest('hex').slice(0, 8);
 
@@ -81,6 +82,16 @@ function leagueOf(meta) {
 }
 const isSupportedEvent = meta => Boolean(leagueOf(meta));
 
+// ---- Motorsport (Formula 1/2/3, MotoGP/Moto2/Moto3): catalogo separato "motorsport", stesse regole di configurazione ----
+const MOTOR_KEYS = MOTOR_SERIES.map(s => s.key);
+const ALL_COMPETITIONS = [...LEAGUES, ...MOTOR_SERIES];
+const ALL_KEYS = ALL_COMPETITIONS.map(c => c.key);
+const motorKeyOf = meta => parseMotorsport(meta?.name ?? meta?.title)?.key;
+const isSupportedMotor = meta => Boolean(motorKeyOf(meta));
+const categoryOf = meta => leagueOf(meta) ?? motorKeyOf(meta); // chiave della competizione (calcio o motorsport)
+const SPORT_PREFIXES = ['soccer:', 'motorsport:'];
+const sportOfId = id => SPORT_PREFIXES.find(prefix => id.startsWith(prefix))?.slice(0, -1);
+
 // ---- Configurazione nell'URL di installazione ----
 //   /cfg/serie-a,la-liga/manifest.json            competizioni scelte
 //   /cfg/all/u/<manifest EasySports base64url>/…   manifest EasySports personale (altrimenti si usa quello predefinito)
@@ -100,7 +111,7 @@ function parseUpstreamManifest(value) {
 app.use((req, res, next) => {
   const m = req.url.match(/^\/cfg\/([a-z0-9,-]*)(?:\/u\/([A-Za-z0-9_-]+))?(\/.*)?$/i);
   if (m) {
-    const keys = m[1].split(',').filter(k => LEAGUE_KEYS.includes(k));
+    const keys = m[1].split(',').filter(k => ALL_KEYS.includes(k));
     req.enabled = keys.length ? keys : undefined;
     if (m[2]) {
       const decoded = Buffer.from(m[2], 'base64url').toString('utf8');
@@ -113,7 +124,7 @@ app.use((req, res, next) => {
   }
   next();
 });
-const enabledKeys = req => req.enabled || LEAGUE_KEYS;
+const enabledKeys = req => req.enabled || ALL_KEYS;
 
 const TEAM_ALIASES = [
   [['ac monza', 'monza'], 'monza'],
@@ -276,6 +287,14 @@ for (const [key, folder] of Object.entries(COVER_FOLDERS)) {
   localCovers[key] = { dir, urlPath: `/covers/${folder}`, ...makeLocalCovers(dir, `/covers/${folder}`) };
 }
 
+// Copertine motorsport: src/covers/<categoria>/<gp>-<sessione>.jpg (vedi motorsport.js)
+const motorCovers = {};
+for (const series of MOTOR_SERIES) {
+  const dir = path.join(COVERS_DIR, series.folder);
+  mkdirSync(dir, { recursive: true });
+  motorCovers[series.key] = { dir, urlPath: `/covers/${series.folder}`, ...makeMotorCovers(dir, `/covers/${series.folder}`) };
+}
+
 async function loadCoverFiles() {
   if (coverFilesLoadedAt && Date.now() - coverFilesLoadedAt < 10 * 60_000) return coverFiles;
   try {
@@ -321,6 +340,7 @@ const isSimulcast = value => typeof value === 'string' && SIMULCAST_RE.test(clea
 function cleanMeta(meta, base) {
   if (!meta || typeof meta !== 'object') return meta;
   const league = leagueOf(meta);
+  const motor = league ? null : parseMotorsport(meta.name ?? meta.title);
   // Canale Simulcast: nome e copertina dedicati per competizione (Serie B: "Zona Goal").
   const simulcastInfo = (isSimulcast(meta.name) || isSimulcast(meta.title)) ? {
     'serie-a': { name: DIRETTA_GOAL_NAME, cover: DIRETTA_GOAL_COVER },
@@ -329,8 +349,9 @@ function cleanMeta(meta, base) {
     'serie-b': { name: 'Zona Goal', cover: `${base}/simulcast/serie-b-zona-goal.webp` }
   }[league] : undefined;
   const simulcast = Boolean(simulcastInfo);
-  const cleanName = simulcast ? simulcastInfo.name : cleanMatchTitle(meta.name);
+  const cleanName = simulcast ? simulcastInfo.name : motor ? motor.title : cleanMatchTitle(meta.name);
   const cover = simulcast ? simulcastInfo.cover
+    : motor ? motorCovers[motor.key].cover(motor, base)
     : league === 'serie-a' ? coverForMatch(meta.name || meta.title || '')
     : localCovers[league]?.cover(meta.name || meta.title || '', base) ?? null;
   const result = {
@@ -339,7 +360,7 @@ function cleanMeta(meta, base) {
     // all'addon EasySports originale (che sovrascriverebbe la copertina).
     id: toOwnId(meta.id),
     ...(typeof meta.name === 'string' ? { name: cleanName } : {}),
-    ...(typeof meta.title === 'string' ? { title: simulcast ? simulcastInfo.name : cleanMatchTitle(meta.title) } : {}),
+    ...(typeof meta.title === 'string' ? { title: simulcast ? simulcastInfo.name : motor ? motor.title : cleanMatchTitle(meta.title) } : {}),
     ...(cover ? { poster: cover, background: cover, thumbnail: cover } : {})
   };
   if (Array.isArray(meta.videos)) {
@@ -353,33 +374,42 @@ function cleanMeta(meta, base) {
 }
 
 // Catalogo EasySports grezzo (in cache): i due cataloghi vengono filtrati e puliti a ogni richiesta.
-async function getUpstreamEvents(req, force = false) {
+async function getUpstreamEvents(req, force = false, sport = 'soccer') {
   const prefix = req?.upstreamPrefix || upstreamPrefix;
-  const cached = catalogCaches.get(prefix);
+  const cacheKey = `${sport}|${prefix}`; // una cache per sport (soccer / motorsport) e per manifest
+  const cached = catalogCaches.get(cacheKey);
   if (!force && cached && cached.expiresAt > Date.now()) return cached.metas;
-  const data = await fetchJson(upstreamUrl('catalog', 'Live Sports', 'soccer', prefix));
-  await loadCoverFiles();
-  const metas = Array.isArray(data?.metas) ? data.metas.filter(isSupportedEvent) : [];
+  const data = await fetchJson(upstreamUrl('catalog', 'Live Sports', sport, prefix));
+  if (sport === 'soccer') await loadCoverFiles();
+  const keep = sport === 'motorsport' ? isSupportedMotor : isSupportedEvent;
+  const metas = Array.isArray(data?.metas) ? data.metas.filter(keep) : [];
   if (catalogCaches.size >= 50) catalogCaches.delete(catalogCaches.keys().next().value);
-  catalogCaches.set(prefix, { metas, expiresAt: Date.now() + CACHE_TTL_MS });
+  catalogCaches.set(cacheKey, { metas, expiresAt: Date.now() + CACHE_TTL_MS });
   return metas;
 }
 
 function buildManifest(req) {
   const base = publicBase(req);
-  const options = LEAGUES.filter(l => enabledKeys(req).includes(l.key)).map(l => l.label);
+  const optionsOf = list => list.filter(l => enabledKeys(req).includes(l.key)).map(l => l.label);
+  const soccerOptions = optionsOf(LEAGUES);
+  const motorOptions = optionsOf(MOTOR_SERIES);
+  // Un catalogo per sport; compaiono solo se almeno una competizione è abilitata.
+  const catalogs = [
+    ...(soccerOptions.length ? [{ type: 'Live Sports', id: 'calcio', name: 'Calcio', extra: [{ name: 'genre', options: soccerOptions, isRequired: false }] }] : []),
+    ...(motorOptions.length ? [{ type: 'Live Sports', id: 'motorsport', name: 'Motorsport', extra: [{ name: 'genre', options: motorOptions, isRequired: false }] }] : [])
+  ];
   return {
     id: 'it.roby.seriea.easysports',
     version: VERSION,
     name: 'Calcio Live',
-    description: 'Serie A, Serie B, Champions League, Europa League, Premier League, Ligue 1, Bundesliga e La Liga, con gli stream forniti da EasySports.',
+    description: 'Serie A, Serie B, Champions League, Europa League, Premier League, Ligue 1, Bundesliga e La Liga, più Formula 1, Formula 2, Formula 3, MotoGP, Moto2 e Moto3, con gli stream forniti da EasySports.',
     logo: `${base}/logo.png?v=${LOGO_HASH}`,
     background: `${base}/logo.png?v=${LOGO_HASH}`,
     resources: ['catalog', 'meta', 'stream'],
     types: ['Live Sports'],
     idPrefixes: [ID_PREFIX],
-    // Un solo catalogo: il genere sceglie la competizione (senza genere: tutte quelle abilitate).
-    catalogs: [{ type: 'Live Sports', id: 'calcio', name: 'Calcio', extra: [{ name: 'genre', options, isRequired: false }] }],
+    // Un catalogo per sport: il genere sceglie la competizione (senza genere: tutte quelle abilitate).
+    catalogs,
     behaviorHints: { configurable: true, configurationRequired: false }
   };
 }
@@ -392,7 +422,7 @@ app.get('/logo.png', (_req, res) => {
 });
 // Copertine dei canali Simulcast (fuori da src/covers, così non vengono sovrascritte aggiornando le cartelle delle partite).
 app.use('/simulcast', express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'simulcast'), { maxAge: '5m' }));
-for (const { dir, urlPath } of Object.values(localCovers)) app.use(urlPath, express.static(dir, { maxAge: '1d' }));
+for (const { dir, urlPath } of [...Object.values(localCovers), ...Object.values(motorCovers)]) app.use(urlPath, express.static(dir, { maxAge: '1d' }));
 app.get('/manifest.json', (req, res) => res.json(buildManifest(req)));
 
 const CONFIGURE_TEMPLATE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'configure.html'), 'utf8');
@@ -409,7 +439,7 @@ function leagueLogoMarkup(league) {
 
 app.get('/configure', (req, res) => {
   const checked = new Set(enabledKeys(req));
-  const cards = LEAGUES.map((l, i) => {
+  const cards = ALL_COMPETITIONS.map((l, i) => {
     const art = LEAGUE_ART[l.key];
     const photo = art.bg ? `<span class="photo"></span>` : '';
     return `<label class="card${art.bg ? ' has-photo' : ''}" style="--c1:${art.c1};--c2:${art.c2};--i:${i}${art.logoBg ? `;--logo-bg:${art.logoBg};--logo-bg-image:none` : ''}${art.bg ? `;--bg:url('${art.bg}')` : ''}">
@@ -420,7 +450,7 @@ app.get('/configure', (req, res) => {
   <span class="tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
 </label>`;
   }).join('\n');
-  res.type('html').send(CONFIGURE_TEMPLATE.replaceAll('{{CARDS}}', cards).replaceAll('{{LOGO_HASH}}', LOGO_HASH).replaceAll('{{VERSION}}', VERSION)
+  res.type('html').send(CONFIGURE_TEMPLATE.replaceAll('{{CARDS}}', cards).replaceAll('{{LOGO_HASH}}', LOGO_HASH).replaceAll('{{VERSION}}', VERSION).replaceAll('{{COUNT}}', String(ALL_COMPETITIONS.length))
     .replaceAll('{{ALLOWED_HOST}}', UPSTREAM_ALLOWED_HOST)
     .replaceAll('{{UPSTREAM_VALUE}}', (req.upstreamManifest || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))));
 });
@@ -429,17 +459,20 @@ app.get('/configure', (req, res) => {
 async function handleCatalog(req, res) {
   const { type, catalogId } = req.params;
   const legacy = LEAGUE_KEYS.includes(catalogId);
-  if (type !== 'Live Sports' || (catalogId !== 'calcio' && !legacy)) return res.json({ metas: [] });
+  const sport = catalogId === 'motorsport' ? 'motorsport' : 'soccer';
+  if (type !== 'Live Sports' || (catalogId !== 'calcio' && catalogId !== 'motorsport' && !legacy)) return res.json({ metas: [] });
   try {
     const extra = new URLSearchParams(req.params.extra || '');
     const genre = extra.get('genre');
-    let keys = enabledKeys(req);
+    const sportKeys = sport === 'motorsport' ? MOTOR_KEYS : LEAGUE_KEYS;
+    let keys = enabledKeys(req).filter(k => sportKeys.includes(k));
     if (legacy) keys = keys.filter(k => k === catalogId);
-    if (genre) keys = keys.filter(k => LEAGUES.find(l => l.key === k).label.toLowerCase() === genre.toLowerCase());
-    const base = publicBase(req);
-    const metas = (await getUpstreamEvents(req, req.query.refresh === '1'))
-      .filter(meta => keys.includes(leagueOf(meta))).map(meta => cleanMeta(meta, base));
+    if (genre) keys = keys.filter(k => ALL_COMPETITIONS.find(l => l.key === k).label.toLowerCase() === genre.toLowerCase());
     res.set({ 'Cache-Control': 'no-store', Vary: 'User-Agent' });
+    if (!keys.length) return res.json({ metas: [] });
+    const base = publicBase(req);
+    const metas = (await getUpstreamEvents(req, req.query.refresh === '1', sport))
+      .filter(meta => keys.includes(categoryOf(meta))).map(meta => cleanMeta(meta, base));
     return res.json({ metas });
   } catch (error) {
     console.error('[catalog]', error.message);
@@ -452,11 +485,11 @@ app.get('/catalog/:type/:catalogId/:extra.json', handleCatalog);
 app.get('/meta/:type/:id.json', async (req, res) => {
   const { type } = req.params;
   const id = toUpstreamId(req.params.id);
-  if (type !== 'Live Sports' || !id.startsWith('soccer:')) return res.json({ meta: null });
+  if (type !== 'Live Sports' || !sportOfId(id)) return res.json({ meta: null });
   try {
     const data = await fetchJson(upstreamUrl('meta', type, id, req.upstreamPrefix));
     const meta = data?.meta;
-    if (!enabledKeys(req).includes(leagueOf(meta))) return res.json({ meta: null });
+    if (!enabledKeys(req).includes(categoryOf(meta))) return res.json({ meta: null });
     await loadCoverFiles();
     return res.json({ ...data, meta: cleanMeta(meta, publicBase(req)) });
   } catch (error) {
@@ -468,12 +501,12 @@ app.get('/meta/:type/:id.json', async (req, res) => {
 app.get('/stream/:type/:id.json', async (req, res) => {
   const { type } = req.params;
   const id = toUpstreamId(req.params.id);
-  if (type !== 'Live Sports' || !id.startsWith('soccer:')) return res.json({ streams: [] });
+  if (type !== 'Live Sports' || !sportOfId(id)) return res.json({ streams: [] });
   try {
     // Validate the event against the filtered league before forwarding its original ID.
-    const metas = await getUpstreamEvents(req);
+    const metas = await getUpstreamEvents(req, false, sportOfId(id));
     const event = metas.find(item => item.id === id);
-    if (!event || !enabledKeys(req).includes(leagueOf(event))) return res.json({ streams: [] });
+    if (!event || !enabledKeys(req).includes(categoryOf(event))) return res.json({ streams: [] });
     const data = await fetchJson(upstreamUrl('stream', type, id, req.upstreamPrefix));
     return res.json(data);
   } catch (error) {
